@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:path_provider/path_provider.dart';
 
 class FileExporter {
@@ -8,5 +10,19 @@ class FileExporter {
     final file = File('${directory.path}/$fileName');
     await file.writeAsBytes(bytes, flush: true);
     return file.path;
+  }
+
+  Future<String?> saveImageToGallery(List<int> bytes, String fileName) async {
+    final result = await ImageGallerySaver.saveImage(
+      Uint8List.fromList(bytes),
+      name: fileName,
+      quality: 100,
+    );
+    final path = result['filePath'] ?? result['file_path'];
+    if (path is String && path.isNotEmpty) {
+      return path;
+    }
+    final data = result['file'] ?? result['path'];
+    return data is String && data.isNotEmpty ? data : null;
   }
 }

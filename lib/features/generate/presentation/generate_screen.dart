@@ -1,6 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../app/di/providers.dart';
 import '../../../domain/entities/qr_customization.dart';
@@ -385,7 +388,7 @@ class _BottomActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final canShare = state.pngBytes != null || state.data.trim().isNotEmpty;
     return SafeArea(
       top: false,
       minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -395,9 +398,23 @@ class _BottomActions extends StatelessWidget {
             child: FilledButton.icon(
               onPressed: state.pngBytes == null
                   ? null
-                  : () {
-                      HapticFeedback.lightImpact();
-                      notifier.saveToHistory();
+                  : () async {
+                      HapticFeedback.mediumImpact();
+                      final path = await notifier.saveToHistory();
+                      if (!context.mounted) return;
+                      final error = notifier.state.error;
+                      if (error != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(error.message)),
+                        );
+                        return;
+                      }
+                      final message = path != null && path.isNotEmpty
+                          ? 'Saved to history & gallery'
+                          : 'Saved to history';
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(message)),
+                      );
                     },
               icon: state.isSaving
                   ? const SizedBox.square(
@@ -408,6 +425,22 @@ class _BottomActions extends StatelessWidget {
               label: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Text(state.isSaving ? 'Saving…' : 'Save'),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: FilledButton.tonalIcon(
+              onPressed: canShare
+                  ? () {
+                      HapticFeedback.selectionClick();
+                      _showShareSheet(context, state);
+                    }
+                  : null,
+              icon: const Icon(Icons.share_rounded),
+              label: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text('Share'),
               ),
             ),
           ),
@@ -433,6 +466,121 @@ class _BottomActions extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showShareSheet(
+    BuildContext context,
+    GenerateState state,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (context) => _ShareSheet(state: state),
+    );
+  }
+}
+
+class _ShareSheet extends StatelessWidget {
+  const _ShareSheet({required this.state});
+
+  final GenerateState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final data = state.data.trim();
+    final hasData = data.isNotEmpty;
+    final hasImage = state.pngBytes != null;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 24),
+        child: ListView(
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Share & collaborate',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Send your QR or its contents directly to other apps.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(indent: 24, endIndent: 24, height: 8),
+            ListTile(
+              leading: Icon(Icons.image_outlined, color: theme.colorScheme.primary),
+              title: const Text('Share QR image'),
+              subtitle: const Text('Send the generated PNG to chats or email'),
+              enabled: hasImage,
+              onTap: hasImage
+                  ? () async {
+                      HapticFeedback.lightImpact();
+                      navigator.pop();
+                      final pngBytes = state.pngBytes!;
+                      final file = XFile.fromData(
+                        Uint8List.fromList(pngBytes),
+                        mimeType: 'image/png',
+                        name: 'qr-code.png',
+                      );
+                      await Share.shareXFiles(
+                        [file],
+                        text: hasData ? data : null,
+                        subject: 'QR code',
+                      );
+                    }
+                  : null,
+            ),
+            ListTile(
+              leading: Icon(Icons.notes_rounded, color: theme.colorScheme.primary),
+              title: const Text('Share content as text'),
+              subtitle: const Text('Send the raw link or message'),
+              enabled: hasData,
+              onTap: hasData
+                  ? () async {
+                      HapticFeedback.lightImpact();
+                      navigator.pop();
+                      await Share.share(data, subject: 'QR code content');
+                    }
+                  : null,
+            ),
+            ListTile(
+              leading: Icon(Icons.copy_all_rounded, color: theme.colorScheme.primary),
+              title: const Text('Copy content'),
+              subtitle: const Text('Copy to clipboard for quick reuse'),
+              enabled: hasData,
+              onTap: hasData
+                  ? () async {
+                      HapticFeedback.lightImpact();
+                      navigator.pop();
+                      await Clipboard.setData(ClipboardData(text: data));
+                      messenger.showSnackBar(
+                        const SnackBar(content: Text('Copied to clipboard')),
+                      );
+                    }
+                  : null,
+            ),
+          ],
+        ),
       ),
     );
   }

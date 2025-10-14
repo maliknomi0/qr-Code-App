@@ -15,6 +15,7 @@ import '../../domain/usecases/export_png_uc.dart';
 import '../../domain/usecases/fetch_history_uc.dart';
 import '../../domain/usecases/generate_qr_uc.dart';
 import '../../domain/usecases/save_item_uc.dart';
+import '../../domain/usecases/save_to_gallery_uc.dart';
 import '../../domain/usecases/scan_code_uc.dart';
 import '../../domain/usecases/toggle_favorite_uc.dart';
 import '../../features/generate/application/generate_vm.dart';
@@ -45,6 +46,7 @@ final scanCodeUcProvider = Provider((ref) => ScanCodeUc(ref.read(scanRepositoryP
 final decodeImageUcProvider = Provider((ref) => DecodeImageUc(ref.read(scanRepositoryProvider)));
 final generateQrUcProvider = Provider((ref) => GenerateQrUc(ref.read(generatorRepositoryProvider)));
 final saveItemUcProvider = Provider((ref) => SaveItemUc(ref.read(historyRepositoryProvider)));
+final saveToGalleryUcProvider = Provider((ref) => SaveToGalleryUc(ref.read(exportRepositoryProvider)));
 final fetchHistoryUcProvider = Provider((ref) => FetchHistoryUc(ref.read(historyRepositoryProvider)));
 final toggleFavoriteUcProvider = Provider((ref) => ToggleFavoriteUc(ref.read(historyRepositoryProvider)));
 final deleteItemUcProvider = Provider((ref) => DeleteItemUc(ref.read(historyRepositoryProvider)));
@@ -64,6 +66,7 @@ final generateVmProvider = StateNotifierProvider.autoDispose<GenerateVm, Generat
     ref.read(generateQrUcProvider),
     ref.read(saveItemUcProvider),
     ref.read(exportPngUcProvider),
+    ref.read(saveToGalleryUcProvider),
   );
 });
 

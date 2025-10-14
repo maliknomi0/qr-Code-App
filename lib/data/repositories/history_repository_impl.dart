@@ -93,6 +93,20 @@ class HistoryRepositoryImpl implements HistoryRepository {
   }
 
   @override
+  Future<Result<String>> saveToGallery(List<int> bytes, {required String fileName}) async {
+    try {
+      final path = await _fileExporter.saveImageToGallery(bytes, fileName);
+      if (path == null || path.isEmpty) {
+        return Err(StorageError('Unable to save image to gallery'));
+      }
+      return Ok(path);
+    } catch (error, stackTrace) {
+      _logger.error('Save to gallery failed', error, stackTrace);
+      return Err(StorageError('Unable to save image to gallery', error));
+    }
+  }
+
+  @override
   Future<Result<String>> exportPdf(List<QrItem> items, {required String fileName}) async {
     try {
       final models = items.map(QrItemModel.fromEntity).toList();

@@ -11,6 +11,7 @@ import '../../../domain/entities/qr_customization.dart';
 import '../../../domain/usecases/export_png_uc.dart';
 import '../../../domain/usecases/generate_qr_uc.dart';
 import '../../../domain/usecases/save_item_uc.dart';
+import '../../../domain/usecases/save_to_gallery_uc.dart';
 import '../../../domain/value_objects/non_empty_string.dart';
 import '../../../domain/value_objects/uuid.dart';
 
@@ -65,21 +66,27 @@ class GenerateState {
 }
 
 class GenerateVm extends StateNotifier<GenerateState> {
-  GenerateVm(this._generate, this._saveItem, this._exportPng) : super(const GenerateState());
+  GenerateVm(
+    this._generate,
+    this._saveItem,
+    this._exportPng,
+    this._saveToGallery,
+  ) : super(const GenerateState());
 
   final GenerateQrUc _generate;
   final SaveItemUc _saveItem;
   final ExportPngUc _exportPng;
+  final SaveToGalleryUc _saveToGallery;
 
   Future<void> updateData(String data) async {
     state = state.copyWith(data: data, error: null);
     await _regenerate();
   }
 
-  Future<void> saveToHistory() async {
+  Future<String?> saveToHistory() async {
     final png = state.pngBytes;
     final data = state.data.trim();
-    if (png == null || data.isEmpty) return;
+    if (png == null || data.isEmpty) return null;
     state = state.copyWith(isSaving: true);
     try {
       final item = QrItem(
@@ -89,12 +96,25 @@ class GenerateVm extends StateNotifier<GenerateState> {
         createdAt: DateTime.now(),
       );
       final result = await _saveItem(item);
+      if (result.isErr) {
+        state = state.copyWith(
+          isSaving: false,
+          error: result.errorOrNull,
+        );
+        return null;
+      }
+      final galleryResult = await _saveToGallery(
+        png,
+        fileName: 'qr_${item.id.value}',
+      );
       state = state.copyWith(
         isSaving: false,
-        error: result.errorOrNull,
+        error: galleryResult.errorOrNull,
       );
+      return galleryResult.valueOrNull;
     } on AppError catch (error) {
       state = state.copyWith(isSaving: false, error: error);
+      return null;
     }
   }
 

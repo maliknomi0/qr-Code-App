@@ -1,12 +1,15 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/di/providers.dart';
-import '../application/generate_vm.dart';
 import '../../../domain/entities/qr_customization.dart';
+import '../application/generate_vm.dart';
 
+/// Mobile-first redesign for the QR generator screen.
+///
+/// Drop-in replacement; uses the same GenerateState / GenerateVm.
+/// Focus: clearer hierarchy, bigger tap targets, sticky bottom actions.
 class GenerateScreen extends ConsumerWidget {
   const GenerateScreen({super.key});
 
@@ -17,391 +20,592 @@ class GenerateScreen extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
         title: const Text('Design QR Code'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
         centerTitle: false,
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              theme.colorScheme.primary.withOpacity(0.08),
-              theme.colorScheme.surface,
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final isWide = constraints.maxWidth > 900;
-              final content = isWide
-                  ? Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: _GenerationPanel(
-                            state: state,
-                            notifier: notifier,
-                          ),
-                        ),
-                        const SizedBox(width: 24),
-                        Expanded(
-                          child: _PreviewPanel(
-                            state: state,
-                            notifier: notifier,
-                          ),
-                        ),
-                      ],
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _PreviewPanel(
-                          state: state,
-                          notifier: notifier,
-                        ),
-                        const SizedBox(height: 24),
-                        _GenerationPanel(
-                          state: state,
-                          notifier: notifier,
-                        ),
-                      ],
-                    );
-
-              return SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight - 48),
-                  child: content,
-                ),
-              );
-            },
+        elevation: 0,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                theme.colorScheme.surface.withOpacity(0.9),
+                theme.colorScheme.surface,
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
           ),
         ),
       ),
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              sliver: SliverList.list(
+                children: [
+                  _HeaderBlurb(),
+                  const SizedBox(height: 12),
+                  _PreviewCard(state: state),
+                  const SizedBox(height: 16),
+                  _ContentCard(
+                    initial: state.data,
+                    onChanged: notifier.updateData,
+                  ),
+                  const SizedBox(height: 16),
+                  _AppearanceCard(state: state, notifier: notifier),
+                  const SizedBox(height: 24),
+                  if (state.error != null)
+                    _ErrorBanner(message: state.error!.message),
+                  const SizedBox(height: 64), // spacer for bottom bar
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: _BottomActions(state: state, notifier: notifier),
     );
   }
 }
 
-class _GenerationPanel extends StatelessWidget {
-  const _GenerationPanel({required this.state, required this.notifier});
-
-  final GenerateState state;
-  final GenerateVm notifier;
-
+class _HeaderBlurb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final titleStyle = theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Craft a scannable experience', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 8),
-        Text(
-          'Enter the content and tailor the appearance of your QR code to match your brand or personal style.',
-          style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-        ),
-        const SizedBox(height: 24),
-        Card(
-          elevation: 0,
-          clipBehavior: Clip.antiAlias,
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('QR Content', style: titleStyle),
-                const SizedBox(height: 12),
-                TextField(
-                  decoration: const InputDecoration(
-                    labelText: 'Data',
-                    hintText: 'Enter URL, text, Wi-Fi config or contact card',
-                  ),
-                  minLines: 3,
-                  maxLines: 6,
-                  onChanged: notifier.updateData,
-                ),
-                const SizedBox(height: 20),
-                Text('Customization', style: titleStyle),
-                const SizedBox(height: 12),
-                Text('QR color', style: theme.textTheme.labelLarge),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: _Palette.colors
-                      .map(
-                        (color) => _ColorSwatch(
-                          color: color,
-                          isSelected: state.foregroundColor.value == color.value,
-                          onTap: () {
-                            notifier.updateForegroundColor(color);
-                          },
-                        ),
-                      )
-                      .toList(),
-                ),
-                const SizedBox(height: 20),
-                Text('Background', style: theme.textTheme.labelLarge),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: _Palette.backgrounds
-                      .map(
-                        (color) => _ColorSwatch(
-                          color: color,
-                          isSelected: state.backgroundColor.value == color.value,
-                          onTap: () {
-                            notifier.updateBackgroundColor(color);
-                          },
-                        ),
-                      )
-                      .toList(),
-                ),
-                const SizedBox(height: 20),
-                Text('Error correction', style: theme.textTheme.labelLarge),
-                const SizedBox(height: 8),
-                SegmentedButton<QrErrorCorrection>(
-                  segments: QrErrorCorrection.values
-                      .map(
-                        (level) => ButtonSegment(
-                          value: level,
-                          label: Text(_labelForCorrection(level)),
-                          icon: Icon(_iconForCorrection(level)),
-                        ),
-                      )
-                      .toList(),
-                  selected: {state.errorCorrection},
-                  onSelectionChanged: (values) {
-                    notifier.updateErrorCorrection(values.first);
-                  },
-                ),
-                const SizedBox(height: 20),
-                Text('Export size', style: theme.textTheme.labelLarge),
-                SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: 6,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
-                  ),
-                  child: Slider(
-                    value: state.pixelSize.clamp(512, 2048).toDouble(),
-                    min: 512,
-                    max: 2048,
-                    divisions: 6,
-                    label: '${state.pixelSize.round()} px',
-                    onChanged: (value) => notifier.updatePixelSize(value, regenerate: false),
-                    onChangeEnd: (value) => notifier.updatePixelSize(value, regenerate: true),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Higher values create sharper exports. Current: ${state.pixelSize.round()} px',
-                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  value: state.gapless,
-                  onChanged: (value) {
-                    notifier.updateGapless(value);
-                  },
-                  title: const Text('Gapless mode'),
-                  subtitle: const Text('Remove spacing between modules for a crisp look'),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 24),
-        _ActionButtons(state: state, notifier: notifier),
-        if (state.error != null) ...[
-          const SizedBox(height: 12),
-          Text(
-            state.error!.message,
-            style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _PreviewPanel extends StatelessWidget {
-  const _PreviewPanel({required this.state, required this.notifier});
-
-  final GenerateState state;
-  final GenerateVm notifier;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Card(
-          elevation: 0,
-          clipBehavior: Clip.antiAlias,
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                _QrPreview(
-                  bytes: state.pngBytes,
-                  backgroundColor: state.backgroundColor,
-                  foregroundColor: state.foregroundColor,
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  state.pngBytes == null
-                      ? 'Start typing to see a live preview of your QR code.'
-                      : 'Looks great! Save it to your history or export a high-quality PNG.',
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ActionButtons extends StatelessWidget {
-  const _ActionButtons({required this.state, required this.notifier});
-
-  final GenerateState state;
-  final GenerateVm notifier;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: FilledButton.icon(
-            onPressed: state.pngBytes == null
-                ? null
-                : () {
-                    notifier.saveToHistory();
-                  },
-            icon: state.isSaving
-                ? const SizedBox.square(
-                    dimension: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.bookmark_add_outlined),
-            label: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Text(state.isSaving ? 'Saving…' : 'Save to history'),
-            ),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: state.pngBytes == null
-                ? null
-                : () async {
-                    final path = await notifier.exportPng();
-                    if (path != null && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Saved to $path')),
-                      );
-                    }
-                  },
-            icon: const Icon(Icons.ios_share),
-            label: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text('Export PNG'),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _QrPreview extends StatelessWidget {
-  const _QrPreview({
-    required this.bytes,
-    required this.backgroundColor,
-    required this.foregroundColor,
-  });
-
-  final List<int>? bytes;
-  final Color backgroundColor;
-  final Color foregroundColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
+    return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(16),
         gradient: LinearGradient(
           colors: [
-            backgroundColor.withOpacity(0.9),
-            backgroundColor,
+            theme.colorScheme.primary.withOpacity(0.05),
+            theme.colorScheme.surface,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant,
-        ),
-        boxShadow: const [
-          BoxShadow(blurRadius: 24, color: Colors.black12, offset: Offset(0, 12)),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Row(
+        children: [
+          Icon(Icons.qr_code_2, color: theme.colorScheme.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Craft a scannable experience—enter content and tailor the style.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
         ],
       ),
-      padding: const EdgeInsets.all(24),
-      child: AspectRatio(
-        aspectRatio: 1,
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 250),
-          child: bytes == null
-              ? _EmptyPreview(foregroundColor: foregroundColor)
-              : ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: ColoredBox(
-                    color: backgroundColor,
-                    child: Image.memory(
-                      Uint8List.fromList(bytes!),
-                      fit: BoxFit.contain,
-                    ),
+    );
+  }
+}
+
+class _PreviewCard extends StatelessWidget {
+  const _PreviewCard({required this.state});
+  final GenerateState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bg = state.backgroundColor;
+    final fg = state.foregroundColor;
+
+    return Card(
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: LinearGradient(
+                  colors: [bg.withOpacity(0.92), bg],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                border: Border.all(color: theme.colorScheme.outlineVariant),
+                boxShadow: const [
+                  BoxShadow(
+                    blurRadius: 18,
+                    color: Colors.black12,
+                    offset: Offset(0, 10),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(16),
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  child: state.pngBytes == null
+                      ? _EmptyPreview(foregroundColor: fg, compact: true)
+                      : ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: ColoredBox(
+                            color: bg,
+                            child: Image.memory(
+                              Uint8List.fromList(state.pngBytes!),
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              state.pngBytes == null
+                  ? 'Start typing to see a live preview.'
+                  : 'Looks great! Save it or export a high-quality PNG.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ContentCard extends StatefulWidget {
+  const _ContentCard({this.initial, required this.onChanged});
+  final String? initial;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_ContentCard> createState() => _ContentCardState();
+}
+
+class _ContentCardState extends State<_ContentCard> {
+  late final TextEditingController _ctrl = TextEditingController(
+    text: widget.initial ?? '',
+  );
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SectionHeader(icon: Icons.text_fields, title: 'QR Content'),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _ctrl,
+              decoration: const InputDecoration(
+                labelText: 'Data',
+                hintText: 'Enter URL, text, Wi-Fi config, or contact card',
+                alignLabelWithHint: true,
+              ),
+              minLines: 3,
+              maxLines: 6,
+              onChanged: (v) {
+                HapticFeedback.selectionClick();
+                widget.onChanged(v);
+              },
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                _PresetChip(
+                  label: 'URL',
+                  onTap: () => _applyPreset('https://example.com'),
+                ),
+                _PresetChip(
+                  label: 'Text',
+                  onTap: () => _applyPreset('Hello from QR ✨'),
+                ),
+                _PresetChip(
+                  label: 'Wi-Fi',
+                  onTap: () => _applyPreset('WIFI:T:WPA;S:MyWiFi;P:password;;'),
+                ),
+                _PresetChip(
+                  label: 'vCard',
+                  onTap: () => _applyPreset(
+                    'BEGIN:VCARD\nVERSION:3.0\nN:Doe;Jane;;;\nTEL;CELL:+123456789\nEMAIL:jane@example.com\nEND:VCARD',
                   ),
                 ),
+              ],
+            ),
+          ],
         ),
+      ),
+    );
+  }
+
+  void _applyPreset(String value) {
+    _ctrl.text = value;
+    _ctrl.selection = TextSelection.collapsed(offset: value.length);
+    HapticFeedback.lightImpact();
+    widget.onChanged(value);
+  }
+}
+
+class _AppearanceCard extends StatelessWidget {
+  const _AppearanceCard({required this.state, required this.notifier});
+
+  final GenerateState state;
+  final GenerateVm notifier;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final label = theme.textTheme.labelLarge;
+
+    return Card(
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SectionHeader(icon: Icons.brush_outlined, title: 'Appearance'),
+            const SizedBox(height: 12),
+            Text('QR color', style: label),
+            const SizedBox(height: 8),
+            _SwatchGrid(
+              colors: _Palette.colors,
+              selectedColor: state.foregroundColor,
+              onSelect: (c) => notifier.updateForegroundColor(c),
+            ),
+            _HexField(
+              initial: _hex(state.foregroundColor),
+              onSubmitted: (hex) {
+                final c = _tryParseHex(hex);
+                if (c != null) notifier.updateForegroundColor(c);
+              },
+            ),
+            const SizedBox(height: 16),
+            Text('Background', style: label),
+            const SizedBox(height: 8),
+            _SwatchGrid(
+              colors: _Palette.backgrounds,
+              selectedColor: state.backgroundColor,
+              onSelect: (c) => notifier.updateBackgroundColor(c),
+            ),
+            _HexField(
+              initial: _hex(state.backgroundColor),
+              onSubmitted: (hex) {
+                final c = _tryParseHex(hex);
+                if (c != null) notifier.updateBackgroundColor(c);
+              },
+            ),
+            const SizedBox(height: 16),
+            Text('Error correction', style: label),
+            const SizedBox(height: 8),
+            SegmentedButton<QrErrorCorrection>(
+              segments: QrErrorCorrection.values
+                  .map(
+                    (level) => ButtonSegment(
+                      value: level,
+                      label: Text(_labelForCorrection(level)),
+                      icon: Icon(_iconForCorrection(level)),
+                    ),
+                  )
+                  .toList(),
+              selected: {state.errorCorrection},
+              onSelectionChanged: (v) {
+                HapticFeedback.selectionClick();
+                notifier.updateErrorCorrection(v.first);
+              },
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Higher levels make codes more resilient to damage but denser.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('Export size', style: label),
+            const SizedBox(height: 4),
+            _SizeSlider(
+              value: state.pixelSize.clamp(512, 2048).toDouble(),
+              onChanged: (v) => notifier.updatePixelSize(v, regenerate: false),
+              onChangeEnd: (v) => notifier.updatePixelSize(v, regenerate: true),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Current: ${state.pixelSize.round()} px',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              value: state.gapless,
+              onChanged: (v) {
+                HapticFeedback.selectionClick();
+                notifier.updateGapless(v);
+              },
+              title: const Text('Gapless mode'),
+              subtitle: const Text(
+                'Remove spacing between modules for a crisp look',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomActions extends StatelessWidget {
+  const _BottomActions({required this.state, required this.notifier});
+
+  final GenerateState state;
+  final GenerateVm notifier;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      top: false,
+      minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: state.pngBytes == null
+                  ? null
+                  : () {
+                      HapticFeedback.lightImpact();
+                      notifier.saveToHistory();
+                    },
+              icon: state.isSaving
+                  ? const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.bookmark_add_outlined),
+              label: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(state.isSaving ? 'Saving…' : 'Save'),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: state.pngBytes == null
+                  ? null
+                  : () async {
+                      HapticFeedback.lightImpact();
+                      final path = await notifier.exportPng();
+                      if (path != null && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Saved to $path')),
+                        );
+                      }
+                    },
+              icon: const Icon(Icons.ios_share),
+              label: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text('Export PNG'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.icon, required this.title});
+  final IconData icon;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Icon(icon, color: theme.colorScheme.primary),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SwatchGrid extends StatelessWidget {
+  const _SwatchGrid({
+    required this.colors,
+    required this.selectedColor,
+    required this.onSelect,
+  });
+
+  final List<Color> colors;
+  final Color selectedColor;
+  final ValueChanged<Color> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: colors
+          .map(
+            (c) => _ColorSwatch(
+              color: c,
+              isSelected: selectedColor.value == c.value,
+              onTap: () => onSelect(c),
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+class _HexField extends StatefulWidget {
+  const _HexField({required this.initial, required this.onSubmitted});
+  final String initial;
+  final ValueChanged<String> onSubmitted;
+
+  @override
+  State<_HexField> createState() => _HexFieldState();
+}
+
+class _HexFieldState extends State<_HexField> {
+  late final TextEditingController _hexCtrl = TextEditingController(
+    text: widget.initial,
+  );
+
+  @override
+  void dispose() {
+    _hexCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: TextField(
+        controller: _hexCtrl,
+        textInputAction: TextInputAction.done,
+        decoration: InputDecoration(
+          labelText: 'HEX',
+          hintText: '#000000',
+          prefixIcon: const Icon(Icons.palette_outlined),
+          helperText: 'Enter color as #RRGGBB or #AARRGGBB',
+          helperStyle: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        onSubmitted: widget.onSubmitted,
+      ),
+    );
+  }
+}
+
+class _SizeSlider extends StatelessWidget {
+  const _SizeSlider({
+    required this.value,
+    required this.onChanged,
+    required this.onChangeEnd,
+  });
+
+  final double value;
+  final ValueChanged<double> onChanged;
+  final ValueChanged<double> onChangeEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    return SliderTheme(
+      data: SliderTheme.of(context).copyWith(
+        trackHeight: 6,
+        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+        valueIndicatorTextStyle: Theme.of(context).textTheme.labelSmall,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Slider(
+            value: value,
+            min: 512,
+            max: 2048,
+            divisions: 6,
+            label: '${value.round()} px',
+            onChanged: onChanged,
+            onChangeEnd: onChangeEnd,
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: const [
+              Text('512'),
+              Text('1024'),
+              Text('1536'),
+              Text('2048'),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
 class _EmptyPreview extends StatelessWidget {
-  const _EmptyPreview({required this.foregroundColor});
+  const _EmptyPreview({required this.foregroundColor, this.compact = false});
 
   final Color foregroundColor;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final effectiveColor = ThemeData.estimateBrightnessForColor(foregroundColor) == Brightness.light
+    final effectiveColor =
+        ThemeData.estimateBrightnessForColor(foregroundColor) ==
+            Brightness.light
         ? theme.colorScheme.primary
         : foregroundColor;
     return Center(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
+        mainAxisAlignment: compact
+            ? MainAxisAlignment.center
+            : MainAxisAlignment.start,
         children: [
-          Icon(Icons.qr_code_2, size: 72, color: effectiveColor.withOpacity(0.8)),
-          const SizedBox(height: 12),
+          Icon(
+            Icons.qr_code_2,
+            size: 72,
+            color: effectiveColor.withOpacity(0.8),
+          ),
+          const SizedBox(height: 8),
           Text(
             'Your QR preview will appear here',
             textAlign: TextAlign.center,
@@ -415,6 +619,39 @@ class _EmptyPreview extends StatelessWidget {
   }
 }
 
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.error),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, color: theme.colorScheme.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Swatches & palette — kept from your original, just bigger tap targets.
 class _ColorSwatch extends StatelessWidget {
   const _ColorSwatch({
     required this.color,
@@ -428,15 +665,21 @@ class _ColorSwatch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = isSelected ? Theme.of(context).colorScheme.primary : Colors.transparent;
-    final iconColor = ThemeData.estimateBrightnessForColor(color) == Brightness.dark ? Colors.white : Colors.black87;
+    final borderColor = isSelected
+        ? Theme.of(context).colorScheme.primary
+        : Colors.transparent;
+    final iconColor =
+        ThemeData.estimateBrightnessForColor(color) == Brightness.dark
+        ? Colors.white
+        : Colors.black87;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 48,
-        height: 48,
+        duration: const Duration(milliseconds: 180),
+        width: 52,
+        height: 52,
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(16),
@@ -451,13 +694,23 @@ class _ColorSwatch extends StatelessWidget {
                 ]
               : const [],
         ),
-        child: isSelected
-            ? Icon(
-                Icons.check,
-                color: iconColor,
-              )
-            : null,
+        child: isSelected ? Icon(Icons.check, color: iconColor) : null,
       ),
+    );
+  }
+}
+
+class _PresetChip extends StatelessWidget {
+  const _PresetChip({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(
+      label: Text(label),
+      avatar: const Icon(Icons.add, size: 16),
+      onPressed: onTap,
     );
   }
 }
@@ -506,4 +759,30 @@ IconData _iconForCorrection(QrErrorCorrection level) {
     case QrErrorCorrection.high:
       return Icons.security_outlined;
   }
+}
+
+/// Helpers
+String _hex(Color c) =>
+    '#${c.alpha.toRadixString(16).padLeft(2, '0').toUpperCase()}'
+    '${c.red.toRadixString(16).padLeft(2, '0').toUpperCase()}'
+    '${c.green.toRadixString(16).padLeft(2, '0').toUpperCase()}'
+    '${c.blue.toRadixString(16).padLeft(2, '0').toUpperCase()}';
+
+Color? _tryParseHex(String input) {
+  var hex = input.trim();
+  if (!hex.startsWith('#')) hex = '#$hex';
+  // #RRGGBB or #AARRGGBB
+  if (hex.length == 7) {
+    final r = int.parse(hex.substring(1, 3), radix: 16);
+    final g = int.parse(hex.substring(3, 5), radix: 16);
+    final b = int.parse(hex.substring(5, 7), radix: 16);
+    return Color.fromARGB(0xFF, r, g, b);
+  } else if (hex.length == 9) {
+    final a = int.parse(hex.substring(1, 3), radix: 16);
+    final r = int.parse(hex.substring(3, 5), radix: 16);
+    final g = int.parse(hex.substring(5, 7), radix: 16);
+    final b = int.parse(hex.substring(7, 9), radix: 16);
+    return Color.fromARGB(a, r, g, b);
+  }
+  return null;
 }

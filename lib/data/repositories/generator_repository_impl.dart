@@ -30,7 +30,9 @@ class GeneratorRepositoryImpl implements GeneratorRepository {
         color: Color(customization.foregroundColor),
         emptyColor: Color(customization.backgroundColor),
       );
-      final imageData = await painter.toImageData(customization.size.toDouble());
+      final imageData = await painter.toImageData(
+        customization.size.toDouble(),
+      );
       if (imageData == null) {
         return Err(UnknownAppError('Failed to generate QR image'));
       }
@@ -41,7 +43,7 @@ class GeneratorRepositoryImpl implements GeneratorRepository {
     }
   }
 
-  QrErrorCorrectLevel _mapCorrection(QrErrorCorrection level) {
+  int _mapCorrection(QrErrorCorrection level) {
     switch (level) {
       case QrErrorCorrection.low:
         return QrErrorCorrectLevel.L;

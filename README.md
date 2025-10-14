@@ -1,16 +1,30 @@
-# qr_code
+# QR Tool
 
-A new qr_code project.
+A privacy-minded QR utility built with Flutter, Clean Architecture, and Riverpod.
 
-## Getting Started
+## Architecture
 
-This project is a starting point for a Flutter application.
+```
+lib/
+  app/         # Application bootstrap, DI, routing, theming
+  core/        # Cross-cutting error, result and utility helpers
+  domain/      # Pure Dart entities, value objects, repositories, use cases
+  data/        # Hive-backed persistence, device integrations, repository impls
+  features/    # Presentation layer per feature (scan, generate, history, settings)
+```
 
-A few resources to get you started if this is your first Flutter project:
+## Features
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+* Live QR scanning with history capture.
+* Offline QR generation with PNG export and history storage.
+* History management with favorites, delete, and PDF export.
+* Settings panel with analytics toggle and bulk history clearing.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Getting started
+
+```
+flutter pub get
+flutter run
+```
+
+The project targets Flutter 3.x and Dart 3. Ensure device permissions are granted for camera access when scanning.

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:qr_code/core/functional/result.dart';
 
 import '../../../core/error/app_error.dart';
 import '../../../domain/repositories/history_repository.dart';

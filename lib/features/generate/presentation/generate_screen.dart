@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -404,17 +402,17 @@ class _BottomActions extends StatelessWidget {
                       if (!context.mounted) return;
                       final error = notifier.state.error;
                       if (error != null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(error.message)),
-                        );
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text(error.message)));
                         return;
                       }
                       final message = path != null && path.isNotEmpty
                           ? 'Saved to history & gallery'
                           : 'Saved to history';
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(message)),
-                      );
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(message)));
                     },
               icon: state.isSaving
                   ? const SizedBox.square(
@@ -470,10 +468,7 @@ class _BottomActions extends StatelessWidget {
     );
   }
 
-  void _showShareSheet(
-    BuildContext context,
-    GenerateState state,
-  ) {
+  void _showShareSheet(BuildContext context, GenerateState state) {
     showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
@@ -528,7 +523,10 @@ class _ShareSheet extends StatelessWidget {
             ),
             const Divider(indent: 24, endIndent: 24, height: 8),
             ListTile(
-              leading: Icon(Icons.image_outlined, color: theme.colorScheme.primary),
+              leading: Icon(
+                Icons.image_outlined,
+                color: theme.colorScheme.primary,
+              ),
               title: const Text('Share QR image'),
               subtitle: const Text('Send the generated PNG to chats or email'),
               enabled: hasImage,
@@ -551,7 +549,10 @@ class _ShareSheet extends StatelessWidget {
                   : null,
             ),
             ListTile(
-              leading: Icon(Icons.notes_rounded, color: theme.colorScheme.primary),
+              leading: Icon(
+                Icons.notes_rounded,
+                color: theme.colorScheme.primary,
+              ),
               title: const Text('Share content as text'),
               subtitle: const Text('Send the raw link or message'),
               enabled: hasData,
@@ -564,7 +565,10 @@ class _ShareSheet extends StatelessWidget {
                   : null,
             ),
             ListTile(
-              leading: Icon(Icons.copy_all_rounded, color: theme.colorScheme.primary),
+              leading: Icon(
+                Icons.copy_all_rounded,
+                color: theme.colorScheme.primary,
+              ),
               title: const Text('Copy content'),
               subtitle: const Text('Copy to clipboard for quick reuse'),
               enabled: hasData,

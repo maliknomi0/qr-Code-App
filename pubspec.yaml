@@ -47,6 +47,7 @@ dependencies:
   pdf: ^3.11.0
   cupertino_icons: ^1.0.8
   gal: ^2.3.2
+  file_picker: ^8.0.5
 
 dev_dependencies:
   flutter_test:

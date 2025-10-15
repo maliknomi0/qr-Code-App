@@ -27,9 +27,21 @@ class _ScanOverlayState extends State<ScanOverlay>
     return IgnorePointer(
       child: LayoutBuilder(
         builder: (context, constraints) {
+          final theme = Theme.of(context);
+          final isLight = theme.brightness == Brightness.light;
+          final colorScheme = theme.colorScheme;
           final size = constraints.biggest;
           final edge = math.min(size.width, size.height) * 0.80;
-          final cornerColor = Colors.white.withOpacity(0.9);
+          final scrimColor = colorScheme.scrim;
+          final highlightColor = isLight
+              ? colorScheme.onInverseSurface
+              : colorScheme.onSurface;
+          final cornerColor = highlightColor.withOpacity(0.9);
+          final frameShadow = scrimColor.withOpacity(isLight ? 0.35 : 0.6);
+          final innerBorderColor = highlightColor.withOpacity(
+            isLight ? 0.22 : 0.18,
+          );
+          final beamColor = highlightColor.withOpacity(0.85);
 
           return Stack(
             children: [
@@ -38,9 +50,9 @@ class _ScanOverlayState extends State<ScanOverlay>
                   gradient: RadialGradient(
                     radius: 0.9,
                     colors: [
-                      Colors.black.withOpacity(0),
-                      Colors.black.withOpacity(0.55),
-                      Colors.black.withOpacity(0.75),
+                      scrimColor.withOpacity(0),
+                      scrimColor.withOpacity(isLight ? 0.45 : 0.6),
+                      scrimColor.withOpacity(isLight ? 0.65 : 0.8),
                     ],
                     stops: const [0.5, 0.82, 1],
                     center: Alignment.center,
@@ -56,7 +68,7 @@ class _ScanOverlayState extends State<ScanOverlay>
                     border: Border.all(color: cornerColor, width: 2.5),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.45),
+                        color: frameShadow,
                         blurRadius: 32,
                         spreadRadius: 2,
                       ),
@@ -69,9 +81,7 @@ class _ScanOverlayState extends State<ScanOverlay>
                         child: DecoratedBox(
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(28),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.15),
-                            ),
+                            border: Border.all(color: innerBorderColor),
                           ),
                         ),
                       ),
@@ -91,9 +101,9 @@ class _ScanOverlayState extends State<ScanOverlay>
                                 borderRadius: BorderRadius.circular(12),
                                 gradient: LinearGradient(
                                   colors: [
-                                    Colors.white.withOpacity(0),
-                                    Colors.white.withOpacity(0.8),
-                                    Colors.white.withOpacity(0),
+                                    beamColor.withOpacity(0),
+                                    beamColor,
+                                    beamColor.withOpacity(0),
                                   ],
                                   stops: const [0, 0.5, 1],
                                 ),

@@ -5,10 +5,16 @@ import '../../../../domain/entities/qr_item.dart';
 import '../../../../domain/entities/qr_type.dart';
 
 class ScanResultSheet extends StatelessWidget {
-  const ScanResultSheet({super.key, required this.item});
+  const ScanResultSheet({
+    super.key,
+    required this.item,
+    this.autoSaved = true,
+    this.onSave,
+  });
 
   final QrItem item;
-
+  final bool autoSaved;
+  final VoidCallback? onSave;
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -56,7 +62,9 @@ class ScanResultSheet extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Scanned just now',
+                        autoSaved
+                            ? 'Saved to history'
+                            : 'Not saved automatically',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -99,6 +107,14 @@ class ScanResultSheet extends StatelessWidget {
                   icon: const Icon(Icons.open_in_new_rounded),
                   label: const Text('Open in browser'),
                 ),
+                 if (!autoSaved && onSave != null) ...[
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: onSave,
+                icon: const Icon(Icons.save_rounded),
+                label: const Text('Save to history'),
+              ),
+            ],
               ],
             ],
           ],

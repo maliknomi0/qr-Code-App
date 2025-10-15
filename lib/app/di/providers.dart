@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:qr_code/data/preferences/history_preferences.dart';
 
 import '../../core/logging/logger.dart';
 import '../../data/repositories/generator_repository_impl.dart';
@@ -38,37 +39,55 @@ final historyRepositoryProvider = Provider<HistoryRepository>((ref) {
   return HistoryRepositoryImpl(ref.read(loggerProvider));
 });
 
+final historyPreferencesProvider = Provider<HistoryPreferences>((ref) {
+  throw UnimplementedError('HistoryPreferences must be overridden');
+});
+
 final exportRepositoryProvider = Provider<ExportRepository>((ref) {
   return ref.read(historyRepositoryProvider);
 });
 
-final scanCodeUcProvider = Provider((ref) => ScanCodeUc(ref.read(scanRepositoryProvider)));
-final decodeImageUcProvider = Provider((ref) => DecodeImageUc(ref.read(scanRepositoryProvider)));
-final generateQrUcProvider = Provider((ref) => GenerateQrUc(ref.read(generatorRepositoryProvider)));
-final saveItemUcProvider = Provider((ref) => SaveItemUc(ref.read(historyRepositoryProvider)));
-final saveToGalleryUcProvider = Provider((ref) => SaveToGalleryUc(ref.read(exportRepositoryProvider)));
-final fetchHistoryUcProvider = Provider((ref) => FetchHistoryUc(ref.read(historyRepositoryProvider)));
-final toggleFavoriteUcProvider = Provider((ref) => ToggleFavoriteUc(ref.read(historyRepositoryProvider)));
-final deleteItemUcProvider = Provider((ref) => DeleteItemUc(ref.read(historyRepositoryProvider)));
-final exportPngUcProvider = Provider((ref) => ExportPngUc(ref.read(exportRepositoryProvider)));
-final exportPdfUcProvider = Provider((ref) => ExportPdfUc(ref.read(exportRepositoryProvider)));
+final scanCodeUcProvider = Provider(
+  (ref) => ScanCodeUc(ref.read(scanRepositoryProvider)),
+);
+final decodeImageUcProvider = Provider(
+  (ref) => DecodeImageUc(ref.read(scanRepositoryProvider)),
+);
+final generateQrUcProvider = Provider(
+  (ref) => GenerateQrUc(ref.read(generatorRepositoryProvider)),
+);
+final saveItemUcProvider = Provider(
+  (ref) => SaveItemUc(ref.read(historyRepositoryProvider)),
+);
+final saveToGalleryUcProvider = Provider(
+  (ref) => SaveToGalleryUc(ref.read(exportRepositoryProvider)),
+);
+final fetchHistoryUcProvider = Provider(
+  (ref) => FetchHistoryUc(ref.read(historyRepositoryProvider)),
+);
+final toggleFavoriteUcProvider = Provider(
+  (ref) => ToggleFavoriteUc(ref.read(historyRepositoryProvider)),
+);
+final deleteItemUcProvider = Provider(
+  (ref) => DeleteItemUc(ref.read(historyRepositoryProvider)),
+);
+final exportPngUcProvider = Provider(
+  (ref) => ExportPngUc(ref.read(exportRepositoryProvider)),
+);
+final exportPdfUcProvider = Provider(
+  (ref) => ExportPdfUc(ref.read(exportRepositoryProvider)),
+);
 
-final scanVmProvider = StateNotifierProvider.autoDispose<ScanVm, ScanState>((ref) {
-  return ScanVm(
-    ref.read(scanCodeUcProvider),
-    ref.read(saveItemUcProvider),
-    ref.read(fetchHistoryUcProvider),
-  );
-});
-
-final generateVmProvider = StateNotifierProvider.autoDispose<GenerateVm, GenerateState>((ref) {
-  return GenerateVm(
-    ref.read(generateQrUcProvider),
-    ref.read(saveItemUcProvider),
-    ref.read(exportPngUcProvider),
-    ref.read(saveToGalleryUcProvider),
-  );
-});
+final generateVmProvider =
+    StateNotifierProvider.autoDispose<GenerateVm, GenerateState>((ref) {
+      return GenerateVm(
+        ref.read(generateQrUcProvider),
+        ref.read(saveItemUcProvider),
+        ref.read(exportPngUcProvider),
+        ref.read(saveToGalleryUcProvider),
+        () => ref.read(settingsVmProvider).autoSaveGenerated,
+      );
+    });
 
 final historyVmProvider = StateNotifierProvider<HistoryVm, HistoryState>((ref) {
   return HistoryVm(
@@ -79,6 +98,22 @@ final historyVmProvider = StateNotifierProvider<HistoryVm, HistoryState>((ref) {
   );
 });
 
-final settingsVmProvider = StateNotifierProvider<SettingsVm, SettingsState>((ref) {
-  return SettingsVm(ref.read(historyRepositoryProvider));
+final settingsVmProvider = StateNotifierProvider<SettingsVm, SettingsState>((
+  ref,
+) {
+  return SettingsVm(
+    ref.read(historyRepositoryProvider),
+    ref.read(historyPreferencesProvider),
+  );
+});
+
+final scanVmProvider = StateNotifierProvider.autoDispose<ScanVm, ScanState>((
+  ref,
+) {
+  return ScanVm(
+    ref.read(scanCodeUcProvider),
+    ref.read(saveItemUcProvider),
+    ref.read(fetchHistoryUcProvider),
+    () => ref.read(settingsVmProvider).autoSaveScanned,
+  );
 });

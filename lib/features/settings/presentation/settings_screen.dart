@@ -99,6 +99,41 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 20),
+            _SectionCard(
+              icon: Icons.history_rounded,
+              title: 'History & saving',
+              subtitle: 'Choose when new QR codes are stored automatically.',
+              child: Column(
+                children: [
+                  SwitchListTile.adaptive(
+                    value: state.autoSaveGenerated,
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (value) {
+                      HapticFeedback.selectionClick();
+                      notifier.setAutoSaveGenerated(value);
+                    },
+                    title: const Text('Auto-save generated codes'),
+                    subtitle: const Text(
+                      'Automatically store newly generated QR codes in history.',
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  SwitchListTile.adaptive(
+                    value: state.autoSaveScanned,
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (value) {
+                      HapticFeedback.selectionClick();
+                      notifier.setAutoSaveScanned(value);
+                    },
+                    title: const Text('Auto-save scanned codes'),
+                    subtitle: const Text(
+                      'Save every scan to history as soon as it’s detected.',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
 
             // Danger zone
             _SectionCard(

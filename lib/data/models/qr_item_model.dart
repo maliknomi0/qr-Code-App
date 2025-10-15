@@ -1,6 +1,7 @@
 import 'package:hive/hive.dart';
 
 import '../../domain/entities/qr_item.dart';
+import '../../domain/entities/qr_source.dart';
 import '../../domain/entities/qr_type.dart';
 import '../../domain/value_objects/non_empty_string.dart';
 import '../../domain/value_objects/uuid.dart';
@@ -12,6 +13,7 @@ class QrItemModel extends HiveObject {
     required this.data,
     required this.createdAt,
     required this.isFavorite,
+    required this.source,
   });
 
   String id;
@@ -19,22 +21,28 @@ class QrItemModel extends HiveObject {
   String data;
   DateTime createdAt;
   bool isFavorite;
+  int source;
 
   factory QrItemModel.fromEntity(QrItem item) => QrItemModel(
-        id: item.id.value,
-        type: item.type.index,
-        data: item.data.value,
-        createdAt: item.createdAt,
-        isFavorite: item.isFavorite,
-      );
+    id: item.id.value,
+    type: item.type.index,
+    data: item.data.value,
+    createdAt: item.createdAt,
+    isFavorite: item.isFavorite,
+    source: item.source.index,
+  );
 
-  QrItem toEntity() => QrItem(
-        id: Uuid.fromString(id),
-        type: QrType.values[type],
-        data: NonEmptyString(data),
-        createdAt: createdAt,
-        isFavorite: isFavorite,
-      );
+  QrItem toEntity() {
+    final normalizedSource = source.clamp(0, QrSource.values.length - 1);
+    return QrItem(
+      id: Uuid.fromString(id),
+      type: QrType.values[type],
+      data: NonEmptyString(data),
+      createdAt: createdAt,
+      source: QrSource.values[normalizedSource],
+      isFavorite: isFavorite,
+    );
+  }
 }
 
 class QrItemModelAdapter extends TypeAdapter<QrItemModel> {
@@ -48,12 +56,19 @@ class QrItemModelAdapter extends TypeAdapter<QrItemModel> {
     final data = reader.readString();
     final createdAt = DateTime.fromMillisecondsSinceEpoch(reader.readInt());
     final isFavorite = reader.readBool();
+    int source;
+    try {
+      source = reader.readInt();
+    } catch (_) {
+      source = QrSource.unknown.index;
+    }
     return QrItemModel(
       id: id,
       type: type,
       data: data,
       createdAt: createdAt,
       isFavorite: isFavorite,
+      source: source,
     );
   }
 
@@ -64,6 +79,7 @@ class QrItemModelAdapter extends TypeAdapter<QrItemModel> {
       ..writeInt(obj.type)
       ..writeString(obj.data)
       ..writeInt(obj.createdAt.millisecondsSinceEpoch)
-      ..writeBool(obj.isFavorite);
+      ..writeBool(obj.isFavorite)
+      ..writeInt(obj.source);
   }
 }

@@ -176,11 +176,13 @@ class _PreviewCard extends StatelessWidget {
                   end: Alignment.bottomRight,
                 ),
                 border: Border.all(color: theme.colorScheme.outlineVariant),
-                boxShadow: const [
+                boxShadow: [
                   BoxShadow(
                     blurRadius: 18,
-                    color: Colors.black12,
-                    offset: Offset(0, 10),
+                    color: theme.colorScheme.shadow.withOpacity(
+                      theme.brightness == Brightness.light ? 0.16 : 0.6,
+                    ),
+                    offset: const Offset(0, 10),
                   ),
                 ],
               ),
@@ -477,107 +479,6 @@ class _AppearanceCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _BottomActions extends StatelessWidget {
-  const _BottomActions({required this.state, required this.notifier});
-
-  final GenerateState state;
-  final GenerateVm notifier;
-
-  @override
-  Widget build(BuildContext context) {
-    final canShare = state.pngBytes != null || state.data.trim().isNotEmpty;
-    return SafeArea(
-      top: false,
-      minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      child: Row(
-        children: [
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: state.pngBytes == null
-                  ? null
-                  : () async {
-                      HapticFeedback.mediumImpact();
-                      final path = await notifier.saveToHistory();
-                      if (!context.mounted) return;
-                      final error = notifier.state.error;
-                      if (error != null) {
-                        ScaffoldMessenger.of(
-                          context,
-                        ).showSnackBar(SnackBar(content: Text(error.message)));
-                        return;
-                      }
-                      final message = path != null && path.isNotEmpty
-                          ? 'Saved to history & gallery'
-                          : 'Saved to history';
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text(message)));
-                    },
-              icon: state.isSaving
-                  ? const SizedBox.square(
-                      dimension: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.bookmark_add_outlined),
-              label: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Text(state.isSaving ? 'Saving…' : 'Save'),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: FilledButton.tonalIcon(
-              onPressed: canShare
-                  ? () {
-                      HapticFeedback.selectionClick();
-                      _showShareSheet(context, state);
-                    }
-                  : null,
-              icon: const Icon(Icons.share_rounded),
-              label: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text('Share'),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: state.pngBytes == null
-                  ? null
-                  : () async {
-                      HapticFeedback.lightImpact();
-                      final path = await notifier.exportPng();
-                      if (path != null && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Saved to $path')),
-                        );
-                      }
-                    },
-              icon: const Icon(Icons.ios_share),
-              label: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text('Export PNG'),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showShareSheet(BuildContext context, GenerateState state) {
-    showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      showDragHandle: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      builder: (context) => _ShareSheet(state: state),
     );
   }
 }
@@ -1048,70 +949,6 @@ class _ErrorBanner extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Swatches & palette — kept from your original, just bigger tap targets.
-class _ColorSwatch extends StatelessWidget {
-  const _ColorSwatch({
-    required this.color,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final Color color;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final borderColor = isSelected
-        ? Theme.of(context).colorScheme.primary
-        : Colors.transparent;
-    final iconColor =
-        ThemeData.estimateBrightnessForColor(color) == Brightness.dark
-        ? Colors.white
-        : Colors.black87;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor, width: 2),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: borderColor.withOpacity(0.35),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ]
-              : const [],
-        ),
-        child: isSelected ? Icon(Icons.check, color: iconColor) : null,
-      ),
-    );
-  }
-}
-
-class _PresetChip extends StatelessWidget {
-  const _PresetChip({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ActionChip(
-      label: Text(label),
-      avatar: const Icon(Icons.add, size: 16),
-      onPressed: onTap,
     );
   }
 }

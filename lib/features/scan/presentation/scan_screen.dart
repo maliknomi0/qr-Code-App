@@ -35,21 +35,35 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       final previousId = previous?.lastItem?.id;
       final nextItem = next.lastItem;
       if (nextItem != null && nextItem.id != previousId) {
-        _showResult(context, nextItem);
-      }
+ final autoSaved = ref.read(settingsVmProvider).autoSaveScanned;
+        _showResult(context, nextItem, autoSaved: autoSaved);      }
     });
 
     final state = ref.watch(scanVmProvider);
     final historyVm = ref.watch(historyVmProvider.notifier);
 
     final theme = Theme.of(context);
+    final isLight = theme.brightness == Brightness.light;
+    final overlayTextColor = isLight
+        ? theme.colorScheme.onPrimary
+        : theme.colorScheme.onSurface;
+    final overlaySubtleColor = overlayTextColor.withOpacity(
+      isLight ? 0.72 : 0.75,
+    );
+    final headerBase = Color.alphaBlend(
+      theme.colorScheme.scrim.withOpacity(isLight ? 0.25 : 0.4),
+      theme.colorScheme.surface,
+    );
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: Colors.black,
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
+        foregroundColor: overlayTextColor,
+        iconTheme: IconThemeData(color: overlayTextColor),
+        actionsIconTheme: IconThemeData(color: overlayTextColor),
         titleSpacing: 16,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -58,11 +72,20 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
             Text(
               'Align the code within the frame',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: Colors.white70,
+                color: overlaySubtleColor,
                 fontWeight: FontWeight.w500,
               ),
             ),
           ],
+        ),
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [headerBase, theme.colorScheme.surface],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
         ),
         actions: [
           IconButton(
@@ -141,7 +164,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     ).showSnackBar(SnackBar(content: Text(error.message)));
   }
 
-  void _showResult(BuildContext context, QrItem item) {
+void _showResult(BuildContext context, QrItem item, {required bool autoSaved}) {
     unawaited(_controller.stop());
     final theme = Theme.of(context);
     showModalBottomSheet<void>(
@@ -150,7 +173,27 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       showDragHandle: true,
       isScrollControlled: true,
       backgroundColor: theme.colorScheme.surface,
-      builder: (context) => ScanResultSheet(item: item),
+      builder: (context) => ScanResultSheet(
+        item: item,
+        autoSaved: autoSaved,
+        onSave: autoSaved
+            ? null
+            : () async {
+                HapticFeedback.mediumImpact();
+                final messenger = ScaffoldMessenger.of(context);
+                final error = await ref.read(scanVmProvider.notifier).saveItem(item);
+                if (!context.mounted) return;
+                if (error != null) {
+                  messenger.showSnackBar(
+                    SnackBar(content: Text(error.message)),
+                  );
+                } else {
+                  messenger.showSnackBar(
+                    const SnackBar(content: Text('Saved to history.')),
+                  );
+                }
+              },
+      ),
     ).whenComplete(() {
       if (!mounted) return;
       _controller.start();
@@ -163,19 +206,24 @@ class _CaptureIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isLight = theme.brightness == Brightness.light;
+    final subtleColor =
+        (isLight ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface)
+            .withOpacity(isLight ? 0.72 : 0.75);
     final bottom = MediaQuery.paddingOf(context).bottom;
     return Positioned(
       bottom: bottom + 120,
       left: 0,
       right: 0,
       child: Column(
-        children: const [
-          CircularProgressIndicator(color: Colors.white),
-          SizedBox(height: 12),
+        children: [
+          CircularProgressIndicator(color: theme.colorScheme.primary),
+          const SizedBox(height: 12),
           Text(
             'Processing…',
-            style: TextStyle(
-              color: Colors.white70,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: subtleColor,
               fontWeight: FontWeight.w600,
             ),
           ),

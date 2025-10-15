@@ -1,15 +1,15 @@
 import 'dart:async';
-
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:qr_code/domain/entities/qr_source.dart';
 
 import '../../../core/error/app_error.dart';
 import '../../../core/functional/result.dart';
+import '../../../domain/entities/qr_customization.dart';
 import '../../../domain/entities/qr_item.dart';
 import '../../../domain/entities/qr_type.dart';
-import '../../../domain/entities/qr_customization.dart';
 import '../../../domain/usecases/export_png_uc.dart';
 import '../../../domain/usecases/generate_qr_uc.dart';
 import '../../../domain/usecases/save_item_uc.dart';
@@ -67,7 +67,9 @@ class GenerateState {
   }) {
     return GenerateState(
       data: data ?? this.data,
-      pngBytes: identical(pngBytes, _sentinel) ? this.pngBytes : pngBytes as List<int>?,
+      pngBytes: identical(pngBytes, _sentinel)
+          ? this.pngBytes
+          : pngBytes as List<int>?,
       error: identical(error, _sentinel) ? this.error : error as AppError?,
       isSaving: isSaving ?? this.isSaving,
       foregroundColor: foregroundColor ?? this.foregroundColor,
@@ -76,8 +78,9 @@ class GenerateState {
       gapless: gapless ?? this.gapless,
       pixelSize: pixelSize ?? this.pixelSize,
       design: design ?? this.design,
-      logoBytes:
-          identical(logoBytes, _sentinel) ? this.logoBytes : logoBytes as Uint8List?,
+      logoBytes: identical(logoBytes, _sentinel)
+          ? this.logoBytes
+          : logoBytes as Uint8List?,
       logoFileName: identical(logoFileName, _sentinel)
           ? this.logoFileName
           : logoFileName as String?,
@@ -92,12 +95,16 @@ class GenerateVm extends StateNotifier<GenerateState> {
     this._saveItem,
     this._exportPng,
     this._saveToGallery,
+    this._autoSaveGeneratedEnabled,
   ) : super(const GenerateState());
 
   final GenerateQrUc _generate;
   final SaveItemUc _saveItem;
   final ExportPngUc _exportPng;
   final SaveToGalleryUc _saveToGallery;
+  final bool Function() _autoSaveGeneratedEnabled;
+  bool _autoSaving = false;
+  String? _lastAutoSavedData;
 
   Future<void> updateData(String data) async {
     state = state.copyWith(data: data, error: null);
@@ -115,23 +122,20 @@ class GenerateVm extends StateNotifier<GenerateState> {
         type: _inferType(data),
         data: NonEmptyString(data),
         createdAt: DateTime.now(),
+        source: QrSource.generated,
       );
       final result = await _saveItem(item);
       if (result.isErr) {
-        state = state.copyWith(
-          isSaving: false,
-          error: result.errorOrNull,
-        );
+        state = state.copyWith(isSaving: false, error: result.errorOrNull);
         return null;
       }
+      _lastAutoSavedData = data;
+
       final galleryResult = await _saveToGallery(
         png,
         fileName: 'qr_${item.id.value}',
       );
-      state = state.copyWith(
-        isSaving: false,
-        error: galleryResult.errorOrNull,
-      );
+      state = state.copyWith(isSaving: false, error: galleryResult.errorOrNull);
       return galleryResult.valueOrNull;
     } on AppError catch (error) {
       state = state.copyWith(isSaving: false, error: error);
@@ -139,10 +143,40 @@ class GenerateVm extends StateNotifier<GenerateState> {
     }
   }
 
+  Future<void> _autoSaveCurrent(String data) async {
+    if (!_autoSaveGeneratedEnabled()) return;
+    if (state.pngBytes == null) return;
+    if (_autoSaving) return;
+    if (_lastAutoSavedData == data) return;
+    _autoSaving = true;
+    try {
+      final item = QrItem(
+        id: Uuid.generate(),
+        type: _inferType(data),
+        data: NonEmptyString(data),
+        createdAt: DateTime.now(),
+        source: QrSource.generated,
+      );
+      final result = await _saveItem(item);
+      if (result.isErr) {
+        state = state.copyWith(error: result.errorOrNull);
+        return;
+      }
+      _lastAutoSavedData = data;
+    } on AppError catch (error) {
+      state = state.copyWith(error: error);
+    } finally {
+      _autoSaving = false;
+    }
+  }
+
   Future<String?> exportPng() async {
     final png = state.pngBytes;
     if (png == null) return null;
-    final res = await _exportPng(png, fileName: 'qr_${DateTime.now().millisecondsSinceEpoch}');
+    final res = await _exportPng(
+      png,
+      fileName: 'qr_${DateTime.now().millisecondsSinceEpoch}',
+    );
     return res.valueOrNull;
   }
 
@@ -229,6 +263,9 @@ class GenerateVm extends StateNotifier<GenerateState> {
       pngBytes: result.valueOrNull,
       error: result.errorOrNull,
     );
+    if (result.isOk) {
+      unawaited(_autoSaveCurrent(trimmed));
+    }
   }
 
   QrType _inferType(String value) {

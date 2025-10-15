@@ -12,14 +12,15 @@ class FileExporter {
     return file.path;
   }
 
-  Future<String?> saveImageToGallery(List<int> bytes, String fileName) async {
-    final result = await Gal.putImageBytes(
-      Uint8List.fromList(bytes),
-      name: fileName,
-    );
-    if (result != null && result.isNotEmpty) {
-      return result;
+  Future<bool> saveImageToGallery(List<int> bytes, String fileName) async {
+    try {
+      await Gal.putImageBytes(
+        Uint8List.fromList(bytes),
+        name: fileName,
+      );
+      return true;
+    } catch (e) {
+      return false;
     }
-    return null;
   }
 }

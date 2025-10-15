@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:qr_code/features/history/application/history_vm.dart';
 
 import '../../../app/di/providers.dart';
 import '../../../domain/entities/qr_item.dart';

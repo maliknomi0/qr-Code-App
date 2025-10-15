@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 import '../../../app/di/providers.dart';
 import '../../../domain/entities/qr_customization.dart';
@@ -300,6 +301,17 @@ class _AppearanceCard extends StatelessWidget {
             const SizedBox(height: 12),
             Text('QR color', style: label),
             const SizedBox(height: 8),
+            _ColorPreviewRow(
+              color: state.foregroundColor,
+              onPick: () async {
+                final color = await _showColorPicker(
+                  context,
+                  state.foregroundColor,
+                );
+                if (color != null) notifier.updateForegroundColor(color);
+              },
+            ),
+            const SizedBox(height: 12),
             _SwatchGrid(
               colors: _Palette.colors,
               selectedColor: state.foregroundColor,
@@ -315,6 +327,17 @@ class _AppearanceCard extends StatelessWidget {
             const SizedBox(height: 16),
             Text('Background', style: label),
             const SizedBox(height: 8),
+            _ColorPreviewRow(
+              color: state.backgroundColor,
+              onPick: () async {
+                final color = await _showColorPicker(
+                  context,
+                  state.backgroundColor,
+                );
+                if (color != null) notifier.updateBackgroundColor(color);
+              },
+            ),
+            const SizedBox(height: 12),
             _SwatchGrid(
               colors: _Palette.backgrounds,
               selectedColor: state.backgroundColor,
@@ -802,6 +825,81 @@ class _SwatchGrid extends StatelessWidget {
           .toList(),
     );
   }
+}
+
+class _ColorPreviewRow extends StatelessWidget {
+  const _ColorPreviewRow({required this.color, required this.onPick});
+
+  final Color color;
+  final VoidCallback onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final outline = theme.colorScheme.outlineVariant;
+
+    return Row(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: outline),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            'Selected: ${_hex(color)}',
+            style: theme.textTheme.bodyMedium,
+          ),
+        ),
+        FilledButton.tonalIcon(
+          onPressed: onPick,
+          icon: const Icon(Icons.colorize),
+          label: const Text('Color picker'),
+        ),
+      ],
+    );
+  }
+}
+
+Future<Color?> _showColorPicker(BuildContext context, Color initialColor) {
+  return showDialog<Color>(
+    context: context,
+    builder: (context) {
+      var currentColor = initialColor;
+
+      return AlertDialog(
+        title: const Text('Pick a color'),
+        content: StatefulBuilder(
+          builder: (context, setState) {
+            return SingleChildScrollView(
+              child: ColorPicker(
+                pickerColor: currentColor,
+                onColorChanged: (color) => setState(() => currentColor = color),
+                enableAlpha: true,
+                displayThumbColor: true,
+                portraitOnly: true,
+              ),
+            );
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(currentColor),
+            child: const Text('Select'),
+          ),
+        ],
+      );
+    },
+  );
 }
 
 class _HexField extends StatefulWidget {

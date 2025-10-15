@@ -21,6 +21,8 @@ class GenerateScreen extends ConsumerWidget {
     final notifier = ref.watch(generateVmProvider.notifier);
     final theme = Theme.of(context);
 
+    final canShare = state.pngBytes != null || state.data.trim().isNotEmpty;
+
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
@@ -39,6 +41,81 @@ class GenerateScreen extends ConsumerWidget {
             ),
           ),
         ),
+        // 👇 New actions in the AppBar
+        actions: [
+          // Save
+          if (state.isSaving)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Center(
+                child: SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else
+            IconButton(
+              tooltip: 'Save',
+              onPressed: state.pngBytes == null
+                  ? null
+                  : () async {
+                      HapticFeedback.mediumImpact();
+                      final path = await notifier.saveToHistory();
+                      if (!context.mounted) return;
+                      final error = notifier.state.error;
+                      if (error != null) {
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text(error.message)));
+                        return;
+                      }
+                      final message = path != null && path.isNotEmpty
+                          ? 'Saved to history & gallery'
+                          : 'Saved to history';
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(message)));
+                    },
+              icon: const Icon(Icons.bookmark_add_outlined),
+            ),
+
+          // Share
+          IconButton(
+            tooltip: 'Share',
+            onPressed: canShare
+                ? () {
+                    HapticFeedback.selectionClick();
+                    showModalBottomSheet<void>(
+                      context: context,
+                      useSafeArea: true,
+                      showDragHandle: true,
+                      backgroundColor: Theme.of(context).colorScheme.surface,
+                      builder: (context) => _ShareSheet(state: state),
+                    );
+                  }
+                : null,
+            icon: const Icon(Icons.share_rounded),
+          ),
+
+          // Export PNG
+          IconButton(
+            tooltip: 'Export PNG',
+            onPressed: state.pngBytes == null
+                ? null
+                : () async {
+                    HapticFeedback.lightImpact();
+                    final path = await notifier.exportPng();
+                    if (path != null && context.mounted) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text('Saved to $path')));
+                    }
+                  },
+            icon: const Icon(Icons.ios_share),
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: SafeArea(
         child: CustomScrollView(
@@ -60,14 +137,16 @@ class GenerateScreen extends ConsumerWidget {
                   const SizedBox(height: 24),
                   if (state.error != null)
                     _ErrorBanner(message: state.error!.message),
-                  const SizedBox(height: 64), // spacer for bottom bar
+                  const SizedBox(height: 16),
                 ],
               ),
             ),
           ],
         ),
       ),
-      bottomNavigationBar: _BottomActions(state: state, notifier: notifier),
+
+      // ⛔️ Removed bottom bar
+      // bottomNavigationBar: _BottomActions(state: state, notifier: notifier),
     );
   }
 }

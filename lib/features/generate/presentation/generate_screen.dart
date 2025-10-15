@@ -1,9 +1,9 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 import '../../../app/di/providers.dart';
 import '../../../domain/entities/qr_customization.dart';
@@ -312,18 +312,7 @@ class _AppearanceCard extends StatelessWidget {
               },
             ),
             const SizedBox(height: 12),
-            _SwatchGrid(
-              colors: _Palette.colors,
-              selectedColor: state.foregroundColor,
-              onSelect: (c) => notifier.updateForegroundColor(c),
-            ),
-            _HexField(
-              initial: _hex(state.foregroundColor),
-              onSubmitted: (hex) {
-                final c = _tryParseHex(hex);
-                if (c != null) notifier.updateForegroundColor(c);
-              },
-            ),
+
             const SizedBox(height: 16),
             Text('Background', style: label),
             const SizedBox(height: 8),
@@ -338,36 +327,26 @@ class _AppearanceCard extends StatelessWidget {
               },
             ),
             const SizedBox(height: 12),
-            _SwatchGrid(
-              colors: _Palette.backgrounds,
-              selectedColor: state.backgroundColor,
-              onSelect: (c) => notifier.updateBackgroundColor(c),
-            ),
-            _HexField(
-              initial: _hex(state.backgroundColor),
-              onSubmitted: (hex) {
-                final c = _tryParseHex(hex);
-                if (c != null) notifier.updateBackgroundColor(c);
-              },
-            ),
+
             const SizedBox(height: 16),
             Text('Design style', style: label),
             const SizedBox(height: 8),
-            SegmentedButton<QrDesign>(
-              segments: QrDesign.values
-                  .map(
-                    (design) => ButtonSegment(
-                      value: design,
-                      label: Text(_labelForDesign(design)),
-                      icon: Icon(_iconForDesign(design)),
-                    ),
-                  )
-                  .toList(),
-              selected: {state.design},
-              onSelectionChanged: (value) {
-                HapticFeedback.selectionClick();
-                notifier.updateDesign(value.first);
-              },
+            _EnumDropdown<QrDesign>(
+              value: state.design,
+              hint: 'Choose design',
+              onChanged: (v) => notifier.updateDesign(v),
+              items: QrDesign.values.map((design) {
+                return DropdownMenuItem<QrDesign>(
+                  value: design,
+                  child: Row(
+                    children: [
+                      Icon(_iconForDesign(design)),
+                      const SizedBox(width: 8),
+                      Text(_labelForDesign(design)),
+                    ],
+                  ),
+                );
+              }).toList(),
             ),
             const SizedBox(height: 6),
             Text(
@@ -379,21 +358,22 @@ class _AppearanceCard extends StatelessWidget {
             const SizedBox(height: 16),
             Text('Error correction', style: label),
             const SizedBox(height: 8),
-            SegmentedButton<QrErrorCorrection>(
-              segments: QrErrorCorrection.values
-                  .map(
-                    (level) => ButtonSegment(
-                      value: level,
-                      label: Text(_labelForCorrection(level)),
-                      icon: Icon(_iconForCorrection(level)),
-                    ),
-                  )
-                  .toList(),
-              selected: {state.errorCorrection},
-              onSelectionChanged: (v) {
-                HapticFeedback.selectionClick();
-                notifier.updateErrorCorrection(v.first);
-              },
+            _EnumDropdown<QrErrorCorrection>(
+              value: state.errorCorrection,
+              hint: 'Choose level',
+              onChanged: (v) => notifier.updateErrorCorrection(v),
+              items: QrErrorCorrection.values.map((level) {
+                return DropdownMenuItem<QrErrorCorrection>(
+                  value: level,
+                  child: Row(
+                    children: [
+                      Icon(_iconForCorrection(level)),
+                      const SizedBox(width: 8),
+                      Text(_labelForCorrection(level)),
+                    ],
+                  ),
+                );
+              }).toList(),
             ),
             const SizedBox(height: 6),
             Text(
@@ -798,35 +778,6 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _SwatchGrid extends StatelessWidget {
-  const _SwatchGrid({
-    required this.colors,
-    required this.selectedColor,
-    required this.onSelect,
-  });
-
-  final List<Color> colors;
-  final Color selectedColor;
-  final ValueChanged<Color> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: colors
-          .map(
-            (c) => _ColorSwatch(
-              color: c,
-              isSelected: selectedColor.value == c.value,
-              onTap: () => onSelect(c),
-            ),
-          )
-          .toList(),
-    );
-  }
-}
-
 class _ColorPreviewRow extends StatelessWidget {
   const _ColorPreviewRow({required this.color, required this.onPick});
 
@@ -900,48 +851,6 @@ Future<Color?> _showColorPicker(BuildContext context, Color initialColor) {
       );
     },
   );
-}
-
-class _HexField extends StatefulWidget {
-  const _HexField({required this.initial, required this.onSubmitted});
-  final String initial;
-  final ValueChanged<String> onSubmitted;
-
-  @override
-  State<_HexField> createState() => _HexFieldState();
-}
-
-class _HexFieldState extends State<_HexField> {
-  late final TextEditingController _hexCtrl = TextEditingController(
-    text: widget.initial,
-  );
-
-  @override
-  void dispose() {
-    _hexCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: TextField(
-        controller: _hexCtrl,
-        textInputAction: TextInputAction.done,
-        decoration: InputDecoration(
-          hintText: '#000000',
-          prefixIcon: const Icon(Icons.palette_outlined),
-          helperText: 'Enter color as #RRGGBB or #AARRGGBB',
-          helperStyle: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        onSubmitted: widget.onSubmitted,
-      ),
-    );
-  }
 }
 
 class _SizeSlider extends StatelessWidget {
@@ -1269,26 +1178,41 @@ class _PresetChip extends StatelessWidget {
   }
 }
 
-class _Palette {
-  static const List<Color> colors = [
-    Color(0xFF111827),
-    Color(0xFF1D4ED8),
-    Color(0xFF059669),
-    Color(0xFFCA8A04),
-    Color(0xFFBE123C),
-    Color(0xFF7C3AED),
-  ];
+// ---------- Dropdown helper used to replace SegmentedButton ----------
+class _EnumDropdown<T> extends StatelessWidget {
+  const _EnumDropdown({
+    required this.value,
+    required this.items,
+    required this.onChanged,
+    this.hint,
+  });
 
-  static const List<Color> backgrounds = [
-    Color(0xFFFFFFFF),
-    Color(0xFFF9FAFB),
-    Color(0xFFF1F5F9),
-    Color(0xFFFFF7ED),
-    Color(0xFFFDE68A),
-    Color(0xFF111827),
-  ];
+  final T value;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T> onChanged;
+  final String? hint;
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<T>(
+      initialValue: value,
+      items: items,
+      isExpanded: true,
+      hint: hint == null ? null : Text(hint!),
+      onChanged: (v) {
+        if (v == null) return;
+        HapticFeedback.selectionClick();
+        onChanged(v);
+      },
+      decoration: const InputDecoration(
+        border: OutlineInputBorder(),
+        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      ),
+    );
+  }
 }
 
+// ---------- Label/Icon helpers for enums ----------
 String _labelForDesign(QrDesign design) {
   switch (design) {
     case QrDesign.classic:

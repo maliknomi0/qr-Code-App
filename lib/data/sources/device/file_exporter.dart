@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
+import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:path_provider/path_provider.dart';
 
 class FileExporter {
@@ -13,7 +13,7 @@ class FileExporter {
   }
 
   Future<String?> saveImageToGallery(List<int> bytes, String fileName) async {
-    final result = await ImageGallerySaverPlus.saveImage(
+    final result = await ImageGallerySaver.saveImage(
       Uint8List.fromList(bytes),
       name: fileName,
       quality: 100,

@@ -39,7 +39,6 @@ dependencies:
   hive_flutter: ^1.1.0
   shared_preferences: ^2.3.2
   share_plus: ^10.0.2
-  image_gallery_saver_plus: ^3.0.5
   printing: ^5.13.2
   url_launcher: ^6.3.0
   uuid: ^4.5.1
@@ -47,6 +46,7 @@ dependencies:
   path_provider: ^2.1.4
   pdf: ^3.11.0
   cupertino_icons: ^1.0.8
+  flutter_image_gallery_saver: ^0.0.2
 
 dev_dependencies:
   flutter_test:

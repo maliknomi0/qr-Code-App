@@ -35,7 +35,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   @override
   Widget build(BuildContext context) {
     ref.listen(scanVmProvider, (previous, next) {
-      if (next.error != null) {
+      if (next != null && next.error != null) {
         _showError(context, next.error!);
       }
     });

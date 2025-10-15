@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -49,8 +47,6 @@ class GenerateScreen extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               sliver: SliverList.list(
                 children: [
-                  _HeaderBlurb(),
-                  const SizedBox(height: 12),
                   _PreviewCard(state: state),
                   const SizedBox(height: 16),
                   _ContentCard(
@@ -72,42 +68,6 @@ class GenerateScreen extends ConsumerWidget {
         ),
       ),
       bottomNavigationBar: _BottomActions(state: state, notifier: notifier),
-    );
-  }
-}
-
-class _HeaderBlurb extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(
-          colors: [
-            theme.colorScheme.primary.withOpacity(0.05),
-            theme.colorScheme.surface,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      child: Row(
-        children: [
-          Icon(Icons.qr_code_2, color: theme.colorScheme.primary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Craft a scannable experience—tune colors, logos, and layout.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -219,7 +179,6 @@ class _ContentCardState extends State<_ContentCard> {
             TextField(
               controller: _ctrl,
               decoration: const InputDecoration(
-                labelText: 'Data',
                 hintText: 'Enter URL, text, Wi-Fi config, or contact card',
                 alignLabelWithHint: true,
               ),
@@ -231,40 +190,10 @@ class _ContentCardState extends State<_ContentCard> {
               },
             ),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: [
-                _PresetChip(
-                  label: 'URL',
-                  onTap: () => _applyPreset('https://example.com'),
-                ),
-                _PresetChip(
-                  label: 'Text',
-                  onTap: () => _applyPreset('Hello from QR ✨'),
-                ),
-                _PresetChip(
-                  label: 'Wi-Fi',
-                  onTap: () => _applyPreset('WIFI:T:WPA;S:MyWiFi;P:password;;'),
-                ),
-                _PresetChip(
-                  label: 'vCard',
-                  onTap: () => _applyPreset(
-                    'BEGIN:VCARD\nVERSION:3.0\nN:Doe;Jane;;;\nTEL;CELL:+123456789\nEMAIL:jane@example.com\nEND:VCARD',
-                  ),
-                ),
-              ],
-            ),
           ],
         ),
       ),
     );
-  }
-
-  void _applyPreset(String value) {
-    _ctrl.text = value;
-    _ctrl.selection = TextSelection.collapsed(offset: value.length);
-    HapticFeedback.lightImpact();
-    widget.onChanged(value);
   }
 }
 
@@ -429,7 +358,10 @@ class _BrandingCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SectionHeader(icon: Icons.workspace_premium_outlined, title: 'Branding'),
+            _SectionHeader(
+              icon: Icons.workspace_premium_outlined,
+              title: 'Branding',
+            ),
             const SizedBox(height: 12),
             Text(
               'Drop in your brand mark and control how it sits inside the QR.',
@@ -450,9 +382,7 @@ class _BrandingCard extends StatelessWidget {
                         notifier.updateLogo(null);
                       },
                     )
-                  : _LogoEmptyPreview(
-                      key: const ValueKey('logo-placeholder'),
-                    ),
+                  : _LogoEmptyPreview(key: const ValueKey('logo-placeholder')),
             ),
             const SizedBox(height: 16),
             SizedBox(
@@ -460,7 +390,9 @@ class _BrandingCard extends StatelessWidget {
               child: OutlinedButton.icon(
                 onPressed: () => _pickLogo(context),
                 icon: Icon(
-                  hasLogo ? Icons.autorenew_rounded : Icons.add_photo_alternate_outlined,
+                  hasLogo
+                      ? Icons.autorenew_rounded
+                      : Icons.add_photo_alternate_outlined,
                 ),
                 label: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -474,8 +406,10 @@ class _BrandingCard extends StatelessWidget {
               const SizedBox(height: 8),
               _LogoSizeSlider(
                 value: state.logoScale,
-                onChanged: (value) => notifier.updateLogoScale(value, regenerate: false),
-                onChangeEnd: (value) => notifier.updateLogoScale(value, regenerate: true),
+                onChanged: (value) =>
+                    notifier.updateLogoScale(value, regenerate: false),
+                onChangeEnd: (value) =>
+                    notifier.updateLogoScale(value, regenerate: true),
               ),
               Align(
                 alignment: Alignment.centerLeft,
@@ -820,7 +754,6 @@ class _HexFieldState extends State<_HexField> {
         controller: _hexCtrl,
         textInputAction: TextInputAction.done,
         decoration: InputDecoration(
-          labelText: 'HEX',
           hintText: '#000000',
           prefixIcon: const Icon(Icons.palette_outlined),
           helperText: 'Enter color as #RRGGBB or #AARRGGBB',
@@ -931,7 +864,7 @@ class _LogoLoadedPreview extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: theme.colorScheme.outlineVariant),
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
       ),
       padding: const EdgeInsets.all(12),
       child: Row(
@@ -953,7 +886,9 @@ class _LogoLoadedPreview extends StatelessWidget {
               children: [
                 Text(
                   fileName ?? 'Custom logo',
-                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -989,7 +924,7 @@ class _LogoEmptyPreview extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: theme.colorScheme.outlineVariant),
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.18),
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.18),
       ),
       padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
       child: Column(
@@ -1003,7 +938,9 @@ class _LogoEmptyPreview extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'No logo selected',
-            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 4),
           Text(

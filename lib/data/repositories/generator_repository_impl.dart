@@ -1,7 +1,9 @@
 import 'dart:typed_data';
 import 'dart:ui';
+import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
+import 'package:flutter/widgets.dart';
 
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -26,16 +28,20 @@ class GeneratorRepositoryImpl implements GeneratorRepository {
     try {
       final color = Color(customization.foregroundColor);
       final background = Color(customization.backgroundColor);
-      final embeddedImage = customization.logoBytes == null
-          ? null
-          : MemoryImage(Uint8List.fromList(customization.logoBytes!));
+      final logoBytes = customization.logoBytes;
       final logoScale = customization.logoScale.clamp(0.1, 0.35).toDouble();
-      final embeddedStyle = customization.logoBytes == null
+      final embeddedStyle = logoBytes == null
           ? null
           : QrEmbeddedImageStyle(
               size: Size.square(customization.size * logoScale),
-              borderRadius: BorderRadius.circular(24),
             );
+
+      ui.Image? embeddedImage;
+      if (logoBytes != null) {
+        final codec = await instantiateImageCodec(Uint8List.fromList(logoBytes));
+        final frame = await codec.getNextFrame();
+        embeddedImage = frame.image;
+      }
 
       final painter = QrPainter(
         data: data,
@@ -44,8 +50,8 @@ class GeneratorRepositoryImpl implements GeneratorRepository {
         errorCorrectionLevel: _mapCorrection(customization.errorCorrection),
         color: color,
         emptyColor: background,
-        eyeStyle: _eyeStyleFor(customization.design, color),
-        dataModuleStyle: _moduleStyleFor(customization.design, color),
+        eyeStyle: _eyeStyleFor(customization.design, color) ?? QrEyeStyle(color: color),
+        dataModuleStyle: _moduleStyleFor(customization.design, color) ?? QrDataModuleStyle(color: color),
         embeddedImage: embeddedImage,
         embeddedImageStyle: embeddedStyle,
       );

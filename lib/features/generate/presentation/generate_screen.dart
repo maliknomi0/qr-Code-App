@@ -200,7 +200,6 @@ class _ContentCardState extends State<_ContentCard> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Card(
       elevation: 0,
       clipBehavior: Clip.antiAlias,

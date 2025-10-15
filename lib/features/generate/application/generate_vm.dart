@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -26,6 +28,10 @@ class GenerateState {
     this.errorCorrection = QrErrorCorrection.medium,
     this.gapless = true,
     this.pixelSize = 1024,
+    this.design = QrDesign.classic,
+    this.logoBytes,
+    this.logoFileName,
+    this.logoScale = 0.22,
   });
 
   final String data;
@@ -37,6 +43,10 @@ class GenerateState {
   final QrErrorCorrection errorCorrection;
   final bool gapless;
   final double pixelSize;
+  final QrDesign design;
+  final Uint8List? logoBytes;
+  final String? logoFileName;
+  final double logoScale;
 
   static const Object _sentinel = Object();
 
@@ -50,6 +60,10 @@ class GenerateState {
     QrErrorCorrection? errorCorrection,
     bool? gapless,
     double? pixelSize,
+    QrDesign? design,
+    Object? logoBytes = _sentinel,
+    Object? logoFileName = _sentinel,
+    double? logoScale,
   }) {
     return GenerateState(
       data: data ?? this.data,
@@ -61,6 +75,13 @@ class GenerateState {
       errorCorrection: errorCorrection ?? this.errorCorrection,
       gapless: gapless ?? this.gapless,
       pixelSize: pixelSize ?? this.pixelSize,
+      design: design ?? this.design,
+      logoBytes:
+          identical(logoBytes, _sentinel) ? this.logoBytes : logoBytes as Uint8List?,
+      logoFileName: identical(logoFileName, _sentinel)
+          ? this.logoFileName
+          : logoFileName as String?,
+      logoScale: logoScale ?? this.logoScale,
     );
   }
 }
@@ -159,6 +180,31 @@ class GenerateVm extends StateNotifier<GenerateState> {
     }
   }
 
+  Future<void> updateDesign(QrDesign design) async {
+    if (design == state.design) return;
+    state = state.copyWith(design: design, error: null);
+    await _regenerate();
+  }
+
+  Future<void> updateLogo(Uint8List? bytes, {String? fileName}) async {
+    state = state.copyWith(
+      logoBytes: bytes,
+      logoFileName: fileName,
+      error: null,
+    );
+    await _regenerate();
+  }
+
+  void updateLogoScale(double value, {bool regenerate = true}) {
+    final normalized = value.clamp(0.12, 0.32);
+    if ((normalized - state.logoScale).abs() > 0.0005) {
+      state = state.copyWith(logoScale: normalized, error: null);
+    }
+    if (regenerate) {
+      unawaited(_regenerate());
+    }
+  }
+
   Future<void> _regenerate() async {
     final trimmed = state.data.trim();
     if (trimmed.isEmpty) {
@@ -174,6 +220,9 @@ class GenerateVm extends StateNotifier<GenerateState> {
         errorCorrection: state.errorCorrection,
         gapless: state.gapless,
         size: state.pixelSize.round(),
+        design: state.design,
+        logoBytes: state.logoBytes,
+        logoScale: state.logoScale,
       ),
     );
     state = state.copyWith(

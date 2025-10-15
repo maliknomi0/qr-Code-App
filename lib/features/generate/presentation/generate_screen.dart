@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -56,6 +59,8 @@ class GenerateScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                   _AppearanceCard(state: state, notifier: notifier),
+                  const SizedBox(height: 16),
+                  _BrandingCard(state: state, notifier: notifier),
                   const SizedBox(height: 24),
                   if (state.error != null)
                     _ErrorBanner(message: state.error!.message),
@@ -95,7 +100,7 @@ class _HeaderBlurb extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'Craft a scannable experience—enter content and tailor the style.',
+              'Craft a scannable experience—tune colors, logos, and layout.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -315,6 +320,32 @@ class _AppearanceCard extends StatelessWidget {
               },
             ),
             const SizedBox(height: 16),
+            Text('Design style', style: label),
+            const SizedBox(height: 8),
+            SegmentedButton<QrDesign>(
+              segments: QrDesign.values
+                  .map(
+                    (design) => ButtonSegment(
+                      value: design,
+                      label: Text(_labelForDesign(design)),
+                      icon: Icon(_iconForDesign(design)),
+                    ),
+                  )
+                  .toList(),
+              selected: {state.design},
+              onSelectionChanged: (value) {
+                HapticFeedback.selectionClick();
+                notifier.updateDesign(value.first);
+              },
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Pick a module style that matches your vibe.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 16),
             Text('Error correction', style: label),
             const SizedBox(height: 8),
             SegmentedButton<QrErrorCorrection>(
@@ -374,6 +405,125 @@ class _AppearanceCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _BrandingCard extends StatelessWidget {
+  const _BrandingCard({required this.state, required this.notifier});
+
+  final GenerateState state;
+  final GenerateVm notifier;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final labelStyle = theme.textTheme.labelLarge;
+    final hasLogo = state.logoBytes != null;
+
+    return Card(
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SectionHeader(icon: Icons.workspace_premium_outlined, title: 'Branding'),
+            const SizedBox(height: 12),
+            Text(
+              'Drop in your brand mark and control how it sits inside the QR.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 16),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: hasLogo
+                  ? _LogoLoadedPreview(
+                      key: const ValueKey('logo-preview'),
+                      bytes: state.logoBytes!,
+                      fileName: state.logoFileName,
+                      onRemove: () {
+                        HapticFeedback.selectionClick();
+                        notifier.updateLogo(null);
+                      },
+                    )
+                  : _LogoEmptyPreview(
+                      key: const ValueKey('logo-placeholder'),
+                    ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _pickLogo(context),
+                icon: Icon(
+                  hasLogo ? Icons.autorenew_rounded : Icons.add_photo_alternate_outlined,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(hasLogo ? 'Replace logo' : 'Upload logo'),
+                ),
+              ),
+            ),
+            if (hasLogo) ...[
+              const SizedBox(height: 20),
+              Text('Logo size', style: labelStyle),
+              const SizedBox(height: 8),
+              _LogoSizeSlider(
+                value: state.logoScale,
+                onChanged: (value) => notifier.updateLogoScale(value, regenerate: false),
+                onChangeEnd: (value) => notifier.updateLogoScale(value, regenerate: true),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${(state.logoScale * 100).round()}% of QR width',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Tip: high-contrast PNGs with transparent backgrounds scan best.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickLogo(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final file = result.files.single;
+      final bytes = file.bytes;
+      if (bytes == null) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Unable to read the selected file.')),
+        );
+        return;
+      }
+      HapticFeedback.mediumImpact();
+      await notifier.updateLogo(Uint8List.fromList(bytes), fileName: file.name);
+    } catch (error) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Image selection failed.')),
+      );
+    }
   }
 }
 
@@ -730,6 +880,145 @@ class _SizeSlider extends StatelessWidget {
   }
 }
 
+class _LogoSizeSlider extends StatelessWidget {
+  const _LogoSizeSlider({
+    required this.value,
+    required this.onChanged,
+    required this.onChangeEnd,
+  });
+
+  final double value;
+  final ValueChanged<double> onChanged;
+  final ValueChanged<double> onChangeEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = value.clamp(0.12, 0.32);
+    return SliderTheme(
+      data: SliderTheme.of(context).copyWith(
+        trackHeight: 6,
+        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+      ),
+      child: Slider(
+        value: normalized,
+        min: 0.12,
+        max: 0.32,
+        divisions: 10,
+        label: '${(normalized * 100).round()}%',
+        onChanged: onChanged,
+        onChangeEnd: onChangeEnd,
+      ),
+    );
+  }
+}
+
+class _LogoLoadedPreview extends StatelessWidget {
+  const _LogoLoadedPreview({
+    super.key,
+    required this.bytes,
+    required this.fileName,
+    required this.onRemove,
+  });
+
+  final Uint8List bytes;
+  final String? fileName;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Image.memory(
+              bytes,
+              width: 64,
+              height: 64,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  fileName ?? 'Custom logo',
+                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Placed at the centre of your QR code.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Remove logo',
+            onPressed: onRemove,
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LogoEmptyPreview extends StatelessWidget {
+  const _LogoEmptyPreview({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.18),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.image_outlined,
+            size: 36,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'No logo selected',
+            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Upload a PNG or JPG to brand your QR.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _EmptyPreview extends StatelessWidget {
   const _EmptyPreview({required this.foregroundColor, this.compact = false});
 
@@ -884,6 +1173,32 @@ class _Palette {
     Color(0xFFFDE68A),
     Color(0xFF111827),
   ];
+}
+
+String _labelForDesign(QrDesign design) {
+  switch (design) {
+    case QrDesign.classic:
+      return 'Classic';
+    case QrDesign.roundedEyes:
+      return 'Rounded eyes';
+    case QrDesign.roundedModules:
+      return 'Rounded modules';
+    case QrDesign.roundedAll:
+      return 'Fully rounded';
+  }
+}
+
+IconData _iconForDesign(QrDesign design) {
+  switch (design) {
+    case QrDesign.classic:
+      return Icons.grid_view;
+    case QrDesign.roundedEyes:
+      return Icons.center_focus_weak;
+    case QrDesign.roundedModules:
+      return Icons.blur_circular;
+    case QrDesign.roundedAll:
+      return Icons.bubble_chart;
+  }
 }
 
 String _labelForCorrection(QrErrorCorrection level) {

@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 import 'dart:ui';
 
+import 'package:flutter/painting.dart';
+
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../core/error/app_error.dart';
@@ -22,13 +24,30 @@ class GeneratorRepositoryImpl implements GeneratorRepository {
     QrCustomization customization = const QrCustomization(),
   }) async {
     try {
+      final color = Color(customization.foregroundColor);
+      final background = Color(customization.backgroundColor);
+      final embeddedImage = customization.logoBytes == null
+          ? null
+          : MemoryImage(Uint8List.fromList(customization.logoBytes!));
+      final logoScale = customization.logoScale.clamp(0.1, 0.35).toDouble();
+      final embeddedStyle = customization.logoBytes == null
+          ? null
+          : QrEmbeddedImageStyle(
+              size: Size.square(customization.size * logoScale),
+              borderRadius: BorderRadius.circular(24),
+            );
+
       final painter = QrPainter(
         data: data,
         version: QrVersions.auto,
         gapless: customization.gapless,
         errorCorrectionLevel: _mapCorrection(customization.errorCorrection),
-        color: Color(customization.foregroundColor),
-        emptyColor: Color(customization.backgroundColor),
+        color: color,
+        emptyColor: background,
+        eyeStyle: _eyeStyleFor(customization.design, color),
+        dataModuleStyle: _moduleStyleFor(customization.design, color),
+        embeddedImage: embeddedImage,
+        embeddedImageStyle: embeddedStyle,
       );
       final imageData = await painter.toImageData(
         customization.size.toDouble(),
@@ -53,6 +72,38 @@ class GeneratorRepositoryImpl implements GeneratorRepository {
         return QrErrorCorrectLevel.Q;
       case QrErrorCorrection.high:
         return QrErrorCorrectLevel.H;
+    }
+  }
+
+  QrEyeStyle? _eyeStyleFor(QrDesign design, Color color) {
+    switch (design) {
+      case QrDesign.classic:
+        return null;
+      case QrDesign.roundedModules:
+        return null;
+      case QrDesign.roundedEyes:
+        return QrEyeStyle(color: color, eyeShape: QrEyeShape.circle);
+      case QrDesign.roundedAll:
+        return QrEyeStyle(color: color, eyeShape: QrEyeShape.circle);
+    }
+  }
+
+  QrDataModuleStyle? _moduleStyleFor(QrDesign design, Color color) {
+    switch (design) {
+      case QrDesign.classic:
+        return null;
+      case QrDesign.roundedEyes:
+        return null;
+      case QrDesign.roundedModules:
+        return QrDataModuleStyle(
+          color: color,
+          dataModuleShape: QrDataModuleShape.circle,
+        );
+      case QrDesign.roundedAll:
+        return QrDataModuleStyle(
+          color: color,
+          dataModuleShape: QrDataModuleShape.circle,
+        );
     }
   }
 }

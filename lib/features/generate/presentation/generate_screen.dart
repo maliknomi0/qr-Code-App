@@ -42,9 +42,7 @@ class GenerateScreen extends ConsumerWidget {
             ),
           ),
         ),
-        // 👇 New actions in the AppBar
         actions: [
-          // Save
           if (state.isSaving)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 12),
@@ -133,8 +131,6 @@ class GenerateScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                   _AppearanceCard(state: state, notifier: notifier),
-                  const SizedBox(height: 16),
-                  _BrandingCard(state: state, notifier: notifier),
                   const SizedBox(height: 24),
                   if (state.error != null)
                     _ErrorBanner(message: state.error!.message),
@@ -287,6 +283,7 @@ class _AppearanceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final label = theme.textTheme.labelLarge;
+    final hasLogo = state.logoBytes != null;
 
     return Card(
       elevation: 0,
@@ -298,6 +295,8 @@ class _AppearanceCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _SectionHeader(icon: Icons.brush_outlined, title: 'Appearance'),
+
+            // Colors
             const SizedBox(height: 12),
             Text('QR color', style: label),
             const SizedBox(height: 8),
@@ -311,8 +310,6 @@ class _AppearanceCard extends StatelessWidget {
                 if (color != null) notifier.updateForegroundColor(color);
               },
             ),
-            const SizedBox(height: 12),
-
             const SizedBox(height: 16),
             Text('Background', style: label),
             const SizedBox(height: 8),
@@ -326,8 +323,8 @@ class _AppearanceCard extends StatelessWidget {
                 if (color != null) notifier.updateBackgroundColor(color);
               },
             ),
-            const SizedBox(height: 12),
 
+            // Design + error correction
             const SizedBox(height: 16),
             Text('Design style', style: label),
             const SizedBox(height: 8),
@@ -382,6 +379,8 @@ class _AppearanceCard extends StatelessWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+
+            // Export size + gapless
             const SizedBox(height: 16),
             Text('Export size', style: label),
             const SizedBox(height: 4),
@@ -412,46 +411,11 @@ class _AppearanceCard extends StatelessWidget {
                 'Remove spacing between modules for a crisp look',
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
-class _BrandingCard extends StatelessWidget {
-  const _BrandingCard({required this.state, required this.notifier});
-
-  final GenerateState state;
-  final GenerateVm notifier;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final labelStyle = theme.textTheme.labelLarge;
-    final hasLogo = state.logoBytes != null;
-
-    return Card(
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _SectionHeader(
-              icon: Icons.workspace_premium_outlined,
-              title: 'Branding',
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Drop in your brand mark and control how it sits inside the QR.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
+            // Logo (moved from old Branding card)
             const SizedBox(height: 16),
+            Text('Logo', style: label),
+            const SizedBox(height: 8),
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
               child: hasLogo
@@ -464,13 +428,13 @@ class _BrandingCard extends StatelessWidget {
                         notifier.updateLogo(null);
                       },
                     )
-                  : _LogoEmptyPreview(key: const ValueKey('logo-placeholder')),
+                  : const _LogoEmptyPreview(key: ValueKey('logo-placeholder')),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: () => _pickLogo(context),
+                onPressed: () => _pickLogo(context, notifier),
                 icon: Icon(
                   hasLogo
                       ? Icons.autorenew_rounded
@@ -483,8 +447,8 @@ class _BrandingCard extends StatelessWidget {
               ),
             ),
             if (hasLogo) ...[
-              const SizedBox(height: 20),
-              Text('Logo size', style: labelStyle),
+              const SizedBox(height: 16),
+              Text('Logo size', style: label),
               const SizedBox(height: 8),
               _LogoSizeSlider(
                 value: state.logoScale,
@@ -502,7 +466,7 @@ class _BrandingCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               Text(
                 'Tip: high-contrast PNGs with transparent backgrounds scan best.',
                 style: theme.textTheme.bodySmall?.copyWith(
@@ -514,32 +478,6 @@ class _BrandingCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Future<void> _pickLogo(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-        withData: true,
-      );
-      if (result == null || result.files.isEmpty) return;
-      final file = result.files.single;
-      final bytes = file.bytes;
-      if (bytes == null) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Unable to read the selected file.')),
-        );
-        return;
-      }
-      HapticFeedback.mediumImpact();
-      await notifier.updateLogo(Uint8List.fromList(bytes), fileName: file.name);
-    } catch (error) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Image selection failed.')),
-      );
-    }
   }
 }
 
@@ -1289,4 +1227,31 @@ Color? _tryParseHex(String input) {
     return Color.fromARGB(a, r, g, b);
   }
   return null;
+}
+
+// ---------- Logo picker (now used inside Appearance) ----------
+Future<void> _pickLogo(BuildContext context, GenerateVm notifier) async {
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.single;
+    final bytes = file.bytes;
+    if (bytes == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Unable to read the selected file.')),
+      );
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    await notifier.updateLogo(Uint8List.fromList(bytes), fileName: file.name);
+  } catch (error) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Image selection failed.')),
+    );
+  }
 }

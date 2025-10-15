@@ -1,9 +1,6 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:qr_code/features/history/application/history_vm.dart';
 
 import '../../../app/di/providers.dart';
 import '../../../domain/entities/qr_item.dart';
@@ -69,14 +66,16 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             ),
           ),
         ],
-        flexibleSpace: _GradientAppBarBackground(color: theme.colorScheme.primary),
+        flexibleSpace: _GradientAppBarBackground(
+          color: theme.colorScheme.primary,
+        ),
       ),
       body: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
               theme.colorScheme.surface,
-              theme.colorScheme.surfaceVariant.withOpacity(0.4),
+              theme.colorScheme.surfaceContainerHighest.withOpacity(0.4),
             ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -87,14 +86,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           displacement: 90,
           edgeOffset: 16,
           child: CustomScrollView(
-            physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
             slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                sliver: SliverToBoxAdapter(
-                  child: _HistorySummary(state: state),
-                ),
-              ),
               if (state.error != null)
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -123,7 +118,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       return _HistoryCard(
                         item: item,
                         index: index,
-                        onFavorite: () => notifier.toggleFavorite(item.id.value),
+                        onFavorite: () =>
+                            notifier.toggleFavorite(item.id.value),
                         onDelete: () => notifier.delete(item.id.value),
                       );
                     },
@@ -159,107 +155,6 @@ class _GradientAppBarBackground extends StatelessWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),
-      ),
-    );
-  }
-}
-
-class _HistorySummary extends StatelessWidget {
-  const _HistorySummary({required this.state});
-
-  final HistoryState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final favorites = state.items.where((item) => item.isFavorite).length;
-    final recent = state.items.isNotEmpty ? state.items.first.createdAt : null;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          colors: [
-            theme.colorScheme.primary.withOpacity(0.12),
-            theme.colorScheme.primaryContainer.withOpacity(0.35),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(
-          color: theme.colorScheme.primary.withOpacity(0.2),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: theme.colorScheme.primary.withOpacity(0.08),
-            blurRadius: 24,
-            offset: const Offset(0, 16),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: theme.colorScheme.primary.withOpacity(0.15),
-                child: Icon(
-                  Icons.history_toggle_off_rounded,
-                  color: theme.colorScheme.primary,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      state.items.isEmpty
-                          ? 'No entries yet'
-                          : 'Latest ${_formatRelative(recent ?? DateTime.now())}',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      state.items.isEmpty
-                          ? 'Generate or scan to build your timeline'
-                          : '${state.items.length} items • $favorites favorites',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          LinearProgressIndicator(
-            value: state.items.isEmpty ? 0 : min(favorites / state.items.length, 1),
-            minHeight: 6,
-            borderRadius: BorderRadius.circular(8),
-            backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-            color: theme.colorScheme.primary,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            favorites == 0
-                ? 'Tap the star on an item to keep it handy.'
-                : favorites == 1
-                    ? '1 favorite saved for quick access.'
-                    : '$favorites favorites saved for quick access.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -340,11 +235,14 @@ class _HistoryCard extends StatelessWidget {
           onFavorite();
           return false;
         }
-        final confirmed = await showDialog<bool>(
+        final confirmed =
+            await showDialog<bool>(
               context: context,
               builder: (context) => AlertDialog.adaptive(
                 title: const Text('Delete QR?'),
-                content: const Text('This action removes the item from your history.'),
+                content: const Text(
+                  'This action removes the item from your history.',
+                ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context, false),
@@ -392,7 +290,10 @@ class _HistoryCard extends StatelessWidget {
                           end: Alignment.bottomRight,
                         ),
                       ),
-                      child: Icon(icon, color: theme.colorScheme.onSecondaryContainer),
+                      child: Icon(
+                        icon,
+                        color: theme.colorScheme.onSecondaryContainer,
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -453,10 +354,7 @@ class _HistoryCard extends StatelessWidget {
                   children: [
                     _Chip(label: _formatTimestamp(context, item.createdAt)),
                     if (item.isFavorite)
-                      _Chip(
-                        label: 'Pinned',
-                        icon: Icons.push_pin_rounded,
-                      ),
+                      _Chip(label: 'Pinned', icon: Icons.push_pin_rounded),
                     _Chip(
                       label: item.id.value.substring(0, 8),
                       icon: Icons.fingerprint_rounded,
@@ -490,25 +388,35 @@ class _HistoryCard extends StatelessWidget {
                 const SizedBox(height: 12),
                 ListTile(
                   leading: Icon(
-                    item.isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
+                    item.isFavorite
+                        ? Icons.star_rounded
+                        : Icons.star_border_rounded,
                     color: theme.colorScheme.primary,
                   ),
-                  title: Text(item.isFavorite ? 'Unfavorite' : 'Add to favorites'),
+                  title: Text(
+                    item.isFavorite ? 'Unfavorite' : 'Add to favorites',
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     onFavorite();
                   },
                 ),
                 ListTile(
-                  leading: Icon(Icons.delete_outline, color: theme.colorScheme.error),
+                  leading: Icon(
+                    Icons.delete_outline,
+                    color: theme.colorScheme.error,
+                  ),
                   title: const Text('Delete'),
                   onTap: () async {
                     Navigator.pop(context);
-                    final confirmed = await showDialog<bool>(
+                    final confirmed =
+                        await showDialog<bool>(
                           context: context,
                           builder: (context) => AlertDialog.adaptive(
                             title: const Text('Delete QR?'),
-                            content: const Text('This action removes the item from your history.'),
+                            content: const Text(
+                              'This action removes the item from your history.',
+                            ),
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(context, false),
@@ -549,7 +457,7 @@ class _Chip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.6),
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -601,7 +509,9 @@ class _DismissBackground extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             label,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(color: color),
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(color: color),
           ),
         ],
       ),
@@ -700,17 +610,6 @@ String _formatTimestamp(BuildContext context, DateTime date) {
   final month = date.month.toString().padLeft(2, '0');
   final day = date.day.toString().padLeft(2, '0');
   return '${date.year}-$month-$day · $time';
-}
-
-String _formatRelative(DateTime date) {
-  final now = DateTime.now();
-  final diff = now.difference(date);
-  if (diff.inMinutes < 1) return 'moments ago';
-  if (diff.inMinutes < 60) return '${diff.inMinutes} minutes ago';
-  if (diff.inHours < 24) return '${diff.inHours} hours ago';
-  if (diff.inDays == 1) return 'yesterday';
-  if (diff.inDays < 7) return '${diff.inDays} days ago';
-  return '${(diff.inDays / 7).floor()} weeks ago';
 }
 
 bool _isSameDay(DateTime a, DateTime b) {

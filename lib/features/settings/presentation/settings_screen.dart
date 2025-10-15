@@ -52,41 +52,35 @@ class SettingsScreen extends ConsumerWidget {
           gradient: LinearGradient(
             colors: [
               theme.colorScheme.surface,
-              theme.colorScheme.surfaceVariant.withOpacity(0.3),
+              theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
             ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
         ),
         child: ListView(
-          padding: EdgeInsets.fromLTRB(16, MediaQuery.paddingOf(context).top + kToolbarHeight + 12, 16, 32),
+          padding: EdgeInsets.fromLTRB(
+            16,
+            MediaQuery.paddingOf(context).top + kToolbarHeight + 12,
+            16,
+            32,
+          ),
           children: [
-            _HeroCard(themeMode: themeMode, themeController: themeController),
-            const SizedBox(height: 24),
             _SectionCard(
               icon: Icons.palette_outlined,
               title: 'Appearance',
               subtitle: 'Switch between light, dark or system-matched themes.',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SegmentedButton<ThemeMode>(
-                    segments: const [
-                      ButtonSegment(value: ThemeMode.system, label: Text('System'), icon: Icon(Icons.settings_suggest_outlined)),
-                      ButtonSegment(value: ThemeMode.light, label: Text('Light'), icon: Icon(Icons.light_mode_outlined)),
-                      ButtonSegment(value: ThemeMode.dark, label: Text('Dark'), icon: Icon(Icons.dark_mode_outlined)),
-                    ],
-                    selected: {themeMode},
-                    showSelectedIcon: false,
-                    onSelectionChanged: (selection) {
-                      HapticFeedback.selectionClick();
-                      themeController.setThemeMode(selection.first);
-                    },
-                  ),
-                ],
+              child: _ThemeDropdown(
+                value: themeMode,
+                onChanged: (m) {
+                  HapticFeedback.selectionClick();
+                  themeController.setThemeMode(m);
+                },
               ),
             ),
             const SizedBox(height: 20),
+
+            // Privacy controls
             _SectionCard(
               icon: Icons.insights_outlined,
               title: 'Privacy controls',
@@ -99,10 +93,14 @@ class SettingsScreen extends ConsumerWidget {
                   notifier.setAnalytics(value);
                 },
                 title: const Text('Enable analytics'),
-                subtitle: const Text('Opt-in to anonymous usage analytics that help us improve.'),
+                subtitle: const Text(
+                  'Opt-in to anonymous usage analytics that help us improve.',
+                ),
               ),
             ),
             const SizedBox(height: 20),
+
+            // Danger zone
             _SectionCard(
               icon: Icons.delete_sweep_outlined,
               title: 'Danger zone',
@@ -115,11 +113,14 @@ class SettingsScreen extends ConsumerWidget {
                 ),
                 onPressed: () async {
                   HapticFeedback.mediumImpact();
-                  final confirmed = await showDialog<bool>(
+                  final confirmed =
+                      await showDialog<bool>(
                         context: context,
                         builder: (context) => AlertDialog.adaptive(
                           title: const Text('Clear history?'),
-                          content: const Text('This permanently removes every saved QR code on this device.'),
+                          content: const Text(
+                            'This permanently removes every saved QR code on this device.',
+                          ),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(context, false),
@@ -128,8 +129,10 @@ class SettingsScreen extends ConsumerWidget {
                             FilledButton.tonal(
                               onPressed: () => Navigator.pop(context, true),
                               style: FilledButton.styleFrom(
-                                backgroundColor: theme.colorScheme.errorContainer,
-                                foregroundColor: theme.colorScheme.onErrorContainer,
+                                backgroundColor:
+                                    theme.colorScheme.errorContainer,
+                                foregroundColor:
+                                    theme.colorScheme.onErrorContainer,
                               ),
                               child: const Text('Clear'),
                             ),
@@ -150,15 +153,19 @@ class SettingsScreen extends ConsumerWidget {
                 label: const Text('Clear history'),
               ),
             ),
+
+            // Error
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 250),
-              child: state.error == null
+              child: ref.watch(settingsVmProvider).error == null
                   ? const SizedBox.shrink()
                   : Padding(
                       padding: const EdgeInsets.only(top: 20),
                       child: Text(
-                        state.error!.message,
-                        style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error),
+                        ref.watch(settingsVmProvider).error!.message,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
                       ),
                     ),
             ),
@@ -169,105 +176,71 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
-class _HeroCard extends StatelessWidget {
-  const _HeroCard({required this.themeMode, required this.themeController});
+/// Dropdown that replaces SegmentedButton for ThemeMode
+class _ThemeDropdown extends StatelessWidget {
+  const _ThemeDropdown({required this.value, required this.onChanged});
 
-  final ThemeMode themeMode;
-  final ThemeController themeController;
+  final ThemeMode value;
+  final ValueChanged<ThemeMode> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          colors: [
-            theme.colorScheme.primaryContainer.withOpacity(0.9),
-            theme.colorScheme.primary.withOpacity(0.8),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return DropdownButtonFormField<ThemeMode>(
+      initialValue: value,
+      isExpanded: true,
+      items: const [
+        DropdownMenuItem(
+          value: ThemeMode.system,
+          child: _DropdownTile(
+            icon: Icons.settings_suggest_outlined,
+            label: 'System',
+          ),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: theme.colorScheme.primary.withOpacity(0.2),
-            blurRadius: 32,
-            offset: const Offset(0, 18),
-          ),
-        ],
+        DropdownMenuItem(
+          value: ThemeMode.light,
+          child: _DropdownTile(icon: Icons.light_mode_outlined, label: 'Light'),
+        ),
+        DropdownMenuItem(
+          value: ThemeMode.dark,
+          child: _DropdownTile(icon: Icons.dark_mode_outlined, label: 'Dark'),
+        ),
+      ],
+      onChanged: (m) {
+        if (m == null) return;
+        HapticFeedback.selectionClick();
+        onChanged(m);
+      },
+      decoration: InputDecoration(
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  color: Colors.white.withOpacity(0.18),
-                ),
-                child: const Icon(Icons.tune_rounded, size: 28, color: Colors.white),
-              ),
-              const SizedBox(width: 18),
-              Expanded(
-                child: Text(
-                  'Make it yours',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Current theme: ${_modeLabel(themeMode)}',
-            style: theme.textTheme.titleMedium?.copyWith(color: Colors.white70),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              side: BorderSide(color: Colors.white.withOpacity(0.4)),
-            ),
-            onPressed: () {
-              HapticFeedback.selectionClick();
-              final next = _cycleTheme(themeMode);
-              themeController.setThemeMode(next);
-            },
-            icon: const Icon(Icons.autorenew_rounded),
-            label: const Text('Cycle theme'),
-          ),
-        ],
+      icon: Icon(
+        Icons.arrow_drop_down_rounded,
+        color: theme.colorScheme.onSurfaceVariant,
       ),
     );
   }
+}
 
-  String _modeLabel(ThemeMode mode) {
-    switch (mode) {
-      case ThemeMode.system:
-        return 'System';
-      case ThemeMode.light:
-        return 'Light';
-      case ThemeMode.dark:
-        return 'Dark';
-    }
-  }
+class _DropdownTile extends StatelessWidget {
+  const _DropdownTile({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
 
-  ThemeMode _cycleTheme(ThemeMode current) {
-    switch (current) {
-      case ThemeMode.system:
-        return ThemeMode.light;
-      case ThemeMode.light:
-        return ThemeMode.dark;
-      case ThemeMode.dark:
-        return ThemeMode.system;
-    }
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 8),
+        Text(label),
+      ],
+    );
   }
 }
 
@@ -292,39 +265,45 @@ class _SectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDanger = tone == SectionTone.danger;
-    final baseColor = isDanger ? theme.colorScheme.errorContainer : theme.cardColor;
-    final borderColor = isDanger
-        ? theme.colorScheme.error.withOpacity(0.3)
-        : theme.colorScheme.outlineVariant.withOpacity(0.4);
 
+    // Clean look: no inner "daba" box — just comfy spacing.
     return Card(
-      color: baseColor,
+      elevation: 0,
+      color: theme.cardColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 CircleAvatar(
-                  radius: 22,
-                  backgroundColor: (isDanger ? theme.colorScheme.error : theme.colorScheme.primary)
-                      .withOpacity(0.15),
+                  radius: 20,
+                  backgroundColor:
+                      (isDanger
+                              ? theme.colorScheme.error
+                              : theme.colorScheme.primary)
+                          .withOpacity(0.12),
                   child: Icon(
                     icon,
-                    color: isDanger ? theme.colorScheme.error : theme.colorScheme.primary,
+                    color: isDanger
+                        ? theme.colorScheme.error
+                        : theme.colorScheme.primary,
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         title,
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
                         subtitle,
                         style: theme.textTheme.bodySmall?.copyWith(
@@ -336,17 +315,8 @@ class _SectionCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: borderColor),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                child: child,
-              ),
-            ),
+            const SizedBox(height: 14),
+            child,
           ],
         ),
       ),

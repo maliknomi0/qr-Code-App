@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:qr_code/domain/entities/qr_item.dart';
+import 'package:qr_code/features/scan/presentation/widgets/scan_result_sheet.dart';
 
 import '../../../app/di/providers.dart';
 import '../../../core/error/app_error.dart';
@@ -22,16 +26,16 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   bool _usingFrontCamera = false;
 
   @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     ref.listen(scanVmProvider, (previous, next) {
-      if (next.error != null) {
+      if (next.error != null && next.error != previous?.error) {
         _showError(context, next.error!);
+      }
+
+      final previousId = previous?.lastItem?.id;
+      final nextItem = next.lastItem;
+      if (nextItem != null && nextItem.id != previousId) {
+        _showResult(context, nextItem);
       }
     });
 
@@ -135,6 +139,22 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(error.message)));
+  }
+
+  void _showResult(BuildContext context, QrItem item) {
+    unawaited(_controller.stop());
+    final theme = Theme.of(context);
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: theme.colorScheme.surface,
+      builder: (context) => ScanResultSheet(item: item),
+    ).whenComplete(() {
+      if (!mounted) return;
+      _controller.start();
+    });
   }
 }
 

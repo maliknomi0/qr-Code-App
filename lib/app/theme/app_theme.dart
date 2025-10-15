@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-ThemeData buildAppTheme() {
+ThemeData _buildTheme({required Brightness brightness}) {
+  final isLight = brightness == Brightness.light;
   final colorScheme = ColorScheme.fromSeed(
     seedColor: const Color(0xFF3B5BFF),
-    surface: const Color(0xFFF5F7FF),
-    brightness: Brightness.light,
+    surface: isLight ? const Color(0xFFF5F7FF) : const Color(0xFF11121A),
+    brightness: brightness,
   );
 
   final base = ThemeData(
@@ -18,8 +19,11 @@ ThemeData buildAppTheme() {
     displayColor: colorScheme.onSurface,
   );
 
-  final cardColor = Color.lerp(colorScheme.surface, Colors.white, 0.6) ?? colorScheme.surface;
-  final inputFill = Color.lerp(colorScheme.surface, colorScheme.surfaceVariant, 0.55) ?? colorScheme.surface;
+  final cardColor = isLight
+      ? Color.lerp(colorScheme.surface, Colors.white, 0.6) ?? colorScheme.surface
+      : Color.lerp(colorScheme.surface, colorScheme.surfaceVariant, 0.35) ?? colorScheme.surface;
+  final inputFill = Color.lerp(colorScheme.surface, colorScheme.surfaceVariant, isLight ? 0.55 : 0.3) ??
+      colorScheme.surface;
 
   return base.copyWith(
     colorScheme: colorScheme,
@@ -35,7 +39,7 @@ ThemeData buildAppTheme() {
       centerTitle: false,
       surfaceTintColor: Colors.transparent,
       titleTextStyle: textTheme.titleLarge,
-      systemOverlayStyle: SystemUiOverlayStyle.dark,
+      systemOverlayStyle: isLight ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light,
     ),
     cardTheme: base.cardTheme.copyWith(
       margin: EdgeInsets.zero,
@@ -50,7 +54,7 @@ ThemeData buildAppTheme() {
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(20),
-        borderSide: BorderSide(color: colorScheme.outline.withOpacity(0.3)),
+        borderSide: BorderSide(color: colorScheme.outline.withOpacity(isLight ? 0.3 : 0.5)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(20),
@@ -71,7 +75,7 @@ ThemeData buildAppTheme() {
       style: OutlinedButton.styleFrom(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        side: BorderSide(color: colorScheme.outline.withOpacity(0.35)),
+        side: BorderSide(color: colorScheme.outline.withOpacity(isLight ? 0.35 : 0.6)),
         textStyle: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
       ),
     ),
@@ -83,7 +87,7 @@ ThemeData buildAppTheme() {
     ),
     sliderTheme: base.sliderTheme.copyWith(
       activeTrackColor: colorScheme.primary,
-      inactiveTrackColor: colorScheme.primary.withOpacity(0.15),
+      inactiveTrackColor: colorScheme.primary.withOpacity(isLight ? 0.15 : 0.25),
       thumbColor: colorScheme.primary,
       overlayColor: colorScheme.primary.withOpacity(0.12),
     ),
@@ -97,7 +101,7 @@ ThemeData buildAppTheme() {
       height: 68,
       elevation: 0,
       backgroundColor: Colors.transparent,
-      indicatorColor: colorScheme.primary.withOpacity(0.12),
+      indicatorColor: colorScheme.primary.withOpacity(isLight ? 0.12 : 0.2),
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       labelTextStyle: MaterialStateProperty.all(
         textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
@@ -105,3 +109,7 @@ ThemeData buildAppTheme() {
     ),
   );
 }
+
+ThemeData buildAppTheme() => _buildTheme(brightness: Brightness.light);
+
+ThemeData buildDarkAppTheme() => _buildTheme(brightness: Brightness.dark);

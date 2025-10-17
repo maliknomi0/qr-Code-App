@@ -20,14 +20,15 @@ class HistoryScreen extends ConsumerStatefulWidget {
 }
 
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
-    late final TextEditingController _searchController;
+  late final TextEditingController _searchController;
   String _query = '';
   _HistoryFilter _filter = _HistoryFilter.all;
+  final Set<String> _selectedTags = <String>{};
 
   @override
   void initState() {
     super.initState();
-        _searchController = TextEditingController();
+    _searchController = TextEditingController();
 
     Future.microtask(() => ref.read(historyVmProvider.notifier).load());
   }
@@ -42,31 +43,63 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     final state = ref.watch(historyVmProvider);
     final notifier = ref.watch(historyVmProvider.notifier);
     final theme = Theme.of(context);
-     final sourceFilter = switch (_filter) {
+    final sourceFilter = switch (_filter) {
       _HistoryFilter.all => null,
       _HistoryFilter.generated => QrSource.generated,
       _HistoryFilter.scanned => QrSource.scanned,
     };
 
     final normalizedQuery = _query.trim().toLowerCase();
+    final displayTags = <String, String>{};
+    for (final item in state.items) {
+      for (final tag in item.tags) {
+        displayTags[tag.toLowerCase()] = tag;
+      }
+    }
+
+    final availableTags = displayTags.values.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    final normalizedSelectedTags =
+        _selectedTags.where(displayTags.containsKey).toSet();
+
+    if (normalizedSelectedTags.length != _selectedTags.length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+          _selectedTags
+            ..clear()
+            ..addAll(normalizedSelectedTags);
+        });
+      });
+    }
+
     final filteredItems = state.items.where((item) {
       if (sourceFilter != null && item.source != sourceFilter) {
         return false;
+      }
+      if (normalizedSelectedTags.isNotEmpty) {
+        final itemTags = item.tags.map((tag) => tag.toLowerCase());
+        final hasMatch = itemTags.any(normalizedSelectedTags.contains);
+        if (!hasMatch) return false;
       }
       if (normalizedQuery.isEmpty) return true;
       final value = item.data.value.toLowerCase();
       final typeLabel = _labelForType(item.type).toLowerCase();
       final sourceLabel = _sourceLabel(item.source).toLowerCase();
       final idMatch = item.id.value.toLowerCase().contains(normalizedQuery);
+      final tagMatch = item.tags
+          .any((tag) => tag.toLowerCase().contains(normalizedQuery));
       return value.contains(normalizedQuery) ||
           typeLabel.contains(normalizedQuery) ||
           sourceLabel.contains(normalizedQuery) ||
-          idMatch;
+          idMatch ||
+          tagMatch;
     }).toList();
 
     final totalCount = state.items.length;
     final filteredCount = filteredItems.length;
-    final isFiltered = _filter != _HistoryFilter.all || normalizedQuery.isNotEmpty;
+    final isFiltered = _filter != _HistoryFilter.all ||
+        normalizedQuery.isNotEmpty ||
+        normalizedSelectedTags.isNotEmpty;
     final subtitle = totalCount == 0
         ? 'Codes you create or scan live here'
         : isFiltered
@@ -143,7 +176,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     child: _ErrorBanner(message: state.error!.message),
                   ),
                 ),
-                 if (!state.isLoading && (state.items.isNotEmpty || isFiltered))
+              if (!state.isLoading && (state.items.isNotEmpty || isFiltered))
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   sliver: SliverToBoxAdapter(
@@ -151,6 +184,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       controller: _searchController,
                       query: _query,
                       filter: _filter,
+                      availableTags: availableTags,
+                      selectedTags: normalizedSelectedTags,
                       onQueryChanged: (value) {
                         setState(() {
                           _query = value;
@@ -159,6 +194,19 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       onFilterChanged: (value) {
                         setState(() {
                           _filter = value;
+                        });
+                      },
+                      onTagToggled: (tag) {
+                        setState(() {
+                          final normalized = tag.toLowerCase();
+                          if (!_selectedTags.add(normalized)) {
+                            _selectedTags.remove(normalized);
+                          }
+                        });
+                      },
+                      onClearTags: () {
+                        setState(() {
+                          _selectedTags.clear();
                         });
                       },
                     ),
@@ -174,7 +222,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                   hasScrollBody: false,
                   child: _EmptyState(),
                 )
-                else if (filteredItems.isEmpty)
+              else if (filteredItems.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: _NoResults(
@@ -183,11 +231,12 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                         _query = '';
                         _filter = _HistoryFilter.all;
                         _searchController.clear();
+                        _selectedTags.clear();
                       });
                     },
                   ),
                 )
-             else
+              else
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                   sliver: SliverList.separated(
@@ -292,6 +341,10 @@ class _SearchAndFilterBar extends StatelessWidget {
     required this.filter,
     required this.onQueryChanged,
     required this.onFilterChanged,
+    required this.availableTags,
+    required this.selectedTags,
+    required this.onTagToggled,
+    required this.onClearTags,
   });
 
   final TextEditingController controller;
@@ -299,6 +352,10 @@ class _SearchAndFilterBar extends StatelessWidget {
   final _HistoryFilter filter;
   final ValueChanged<String> onQueryChanged;
   final ValueChanged<_HistoryFilter> onFilterChanged;
+  final List<String> availableTags;
+  final Set<String> selectedTags;
+  final ValueChanged<String> onTagToggled;
+  final VoidCallback onClearTags;
 
   @override
   Widget build(BuildContext context) {
@@ -351,6 +408,34 @@ class _SearchAndFilterBar extends StatelessWidget {
             onFilterChanged(selection.first);
           },
         ),
+        if (availableTags.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text(
+            'Filter by tags',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final tag in availableTags)
+                FilterChip(
+                  label: Text(tag),
+                  selected: selectedTags.contains(tag.toLowerCase()),
+                  onSelected: (_) => onTagToggled(tag),
+                ),
+              if (selectedTags.isNotEmpty)
+                ActionChip(
+                  avatar: const Icon(Icons.clear_rounded, size: 18),
+                  label: const Text('Clear tags'),
+                  onPressed: onClearTags,
+                ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -576,8 +661,10 @@ class _HistoryCard extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    _Chip(label: _formatTimestamp(context, item.createdAt)),
-                    _Chip(label: _formatTimestamp(context, item.createdAt)),
+                    _Chip(
+                      label: _formatTimestamp(context, item.createdAt),
+                      icon: Icons.schedule_rounded,
+                    ),
                     _Chip(
                       label: _sourceLabel(item.source),
                       icon: _iconForSource(item.source),
@@ -588,6 +675,11 @@ class _HistoryCard extends StatelessWidget {
                       label: item.id.value.substring(0, 8),
                       icon: Icons.fingerprint_rounded,
                     ),
+                    for (final tag in item.tags)
+                      _Chip(
+                        label: tag,
+                        icon: Icons.sell_outlined,
+                      ),
                   ],
                 ),
               ],

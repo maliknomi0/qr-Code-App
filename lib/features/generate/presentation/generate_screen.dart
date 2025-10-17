@@ -127,15 +127,8 @@ class GenerateScreen extends ConsumerWidget {
                   const SizedBox(height: 16),
                   _ContentCard(
                     initial: state.data,
-                    tags: state.tags,
-                    maxTags: GenerateVm.maxTags,
                     onChanged: notifier.updateData,
-                    onAddTag: notifier.addTag,
-                    onRemoveTag: notifier.removeTag,
-                    onClearTags: notifier.clearTags,
                   ),
-                  const SizedBox(height: 16),
-                  _BrandingCard(state: state, notifier: notifier),
                   const SizedBox(height: 16),
                   _AppearanceCard(state: state, notifier: notifier),
                   const SizedBox(height: 24),
@@ -229,22 +222,9 @@ class _PreviewCard extends StatelessWidget {
 }
 
 class _ContentCard extends StatefulWidget {
-  const _ContentCard({
-    this.initial,
-    required this.onChanged,
-    required this.tags,
-    required this.maxTags,
-    required this.onAddTag,
-    required this.onRemoveTag,
-    required this.onClearTags,
-  });
+  const _ContentCard({this.initial, required this.onChanged});
   final String? initial;
   final ValueChanged<String> onChanged;
-  final List<String> tags;
-  final int maxTags;
-  final ValueChanged<String> onAddTag;
-  final ValueChanged<String> onRemoveTag;
-  final VoidCallback onClearTags;
 
   @override
   State<_ContentCard> createState() => _ContentCardState();
@@ -254,60 +234,15 @@ class _ContentCardState extends State<_ContentCard> {
   late final TextEditingController _ctrl = TextEditingController(
     text: widget.initial ?? '',
   );
-  late final TextEditingController _tagCtrl = TextEditingController();
 
   @override
   void dispose() {
     _ctrl.dispose();
-    _tagCtrl.dispose();
     super.dispose();
-  }
-
-  void _handleTagSubmit([String? value]) {
-    final rawValue = value ?? _tagCtrl.text;
-    var remaining = widget.maxTags - widget.tags.length;
-    if (remaining <= 0) {
-      _showTagLimitMessage();
-      _tagCtrl.clear();
-      return;
-    }
-
-    final parts = rawValue.split(RegExp(r'[;,]'));
-    var added = false;
-    var limitHit = false;
-    for (final part in parts) {
-      final normalized = part.trim();
-      if (normalized.isEmpty) continue;
-      if (remaining <= 0) {
-        limitHit = true;
-        break;
-      }
-      widget.onAddTag(normalized);
-      remaining--;
-      added = true;
-    }
-    if (added) {
-      HapticFeedback.selectionClick();
-    }
-    if (limitHit) {
-      _showTagLimitMessage();
-    }
-    _tagCtrl.clear();
-  }
-
-  void _showTagLimitMessage() {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('You can add up to ${widget.maxTags} tags per QR code.'),
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final canAddMore = widget.tags.length < widget.maxTags;
     return Card(
       elevation: 0,
       clipBehavior: Clip.antiAlias,
@@ -332,244 +267,7 @@ class _ContentCardState extends State<_ContentCard> {
                 widget.onChanged(v);
               },
             ),
-            const SizedBox(height: 16),
-            Text('Tags (optional)', style: theme.textTheme.labelLarge),
-            const SizedBox(height: 6),
-            Text(
-              'Add short keywords to group and filter saved QR codes later.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 12),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: widget.tags.isEmpty
-                  ? Container(
-                      key: const ValueKey('tag-empty'),
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: theme.colorScheme.outlineVariant,
-                        ),
-                        color: theme.colorScheme.surfaceContainerHighest
-                            .withOpacity(0.2),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.sell_outlined,
-                              color: theme.colorScheme.primary),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'No tags yet — add your first one below.',
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : Wrap(
-                      key: const ValueKey('tag-list'),
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final tag in widget.tags)
-                          InputChip(
-                            label: Text(tag),
-                            onDeleted: () {
-                              HapticFeedback.selectionClick();
-                              widget.onRemoveTag(tag);
-                            },
-                            deleteIcon: const Icon(
-                              Icons.close_rounded,
-                              size: 18,
-                            ),
-                          ),
-                      ],
-                    ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _tagCtrl,
-                    enabled: canAddMore,
-                    textInputAction: TextInputAction.done,
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.sell_outlined),
-                      hintText: canAddMore
-                          ? 'Type a tag and press enter'
-                          : 'Tag limit reached',
-                    ),
-                    onSubmitted: _handleTagSubmit,
-                    onChanged: (value) {
-                      if (value.contains(',') || value.contains(';')) {
-                        _handleTagSubmit(value);
-                      }
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.tonalIcon(
-                  onPressed: canAddMore ? () => _handleTagSubmit() : null,
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('Add'),
-                ),
-              ],
-            ),
-            if (widget.tags.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () {
-                    HapticFeedback.selectionClick();
-                    widget.onClearTags();
-                  },
-                  icon: const Icon(Icons.clear_all_rounded),
-                  label: const Text('Clear tags'),
-                ),
-              ),
-            ],
-            if (!canAddMore)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  'You can add up to ${widget.maxTags} tags.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.error,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BrandingCard extends StatelessWidget {
-  const _BrandingCard({required this.state, required this.notifier});
-
-  final GenerateState state;
-  final GenerateVm notifier;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final hasLogo = state.logoBytes != null;
-
-    return Card(
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _SectionHeader(icon: Icons.badge_outlined, title: 'Branding'),
-            const SizedBox(height: 12),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide = constraints.maxWidth >= 460;
-                final preview = SizedBox(
-                  width: isWide ? 160 : double.infinity,
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 250),
-                    child: hasLogo
-                        ? _LogoLoadedPreview(
-                            key: const ValueKey('logo-preview'),
-                            bytes: state.logoBytes!,
-                            fileName: state.logoFileName,
-                            onRemove: () {
-                              HapticFeedback.selectionClick();
-                              notifier.updateLogo(null);
-                            },
-                          )
-                        : const _LogoEmptyPreview(
-                            key: ValueKey('logo-placeholder'),
-                          ),
-                  ),
-                );
-
-                final controls = Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.tonalIcon(
-                        onPressed: () => _pickLogo(context, notifier),
-                        icon: Icon(
-                          hasLogo
-                              ? Icons.autorenew_rounded
-                              : Icons.add_photo_alternate_outlined,
-                        ),
-                        label: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          child: Text(
-                            hasLogo ? 'Replace logo' : 'Upload logo',
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Transparent PNGs or SVG exports work best.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    if (hasLogo) ...[
-                      const SizedBox(height: 16),
-                      Text('Logo size', style: theme.textTheme.labelLarge),
-                      const SizedBox(height: 8),
-                      _LogoSizeSlider(
-                        value: state.logoScale,
-                        onChanged: (value) =>
-                            notifier.updateLogoScale(value, regenerate: false),
-                        onChangeEnd: (value) =>
-                            notifier.updateLogoScale(value, regenerate: true),
-                      ),
-                      Text(
-                        '${(state.logoScale * 100).round()}% of the QR width',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ],
-                );
-
-                if (isWide) {
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      preview,
-                      const SizedBox(width: 20),
-                      Expanded(child: controls),
-                    ],
-                  );
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    preview,
-                    const SizedBox(height: 16),
-                    controls,
-                  ],
-                );
-              },
-            ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -587,6 +285,7 @@ class _AppearanceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final label = theme.textTheme.labelLarge;
+    final hasLogo = state.logoBytes != null;
 
     return Card(
       elevation: 0,
@@ -714,6 +413,69 @@ class _AppearanceCard extends StatelessWidget {
                 'Remove spacing between modules for a crisp look',
               ),
             ),
+
+            // Logo (moved from old Branding card)
+            const SizedBox(height: 16),
+            Text('Logo', style: label),
+            const SizedBox(height: 8),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: hasLogo
+                  ? _LogoLoadedPreview(
+                      key: const ValueKey('logo-preview'),
+                      bytes: state.logoBytes!,
+                      fileName: state.logoFileName,
+                      onRemove: () {
+                        HapticFeedback.selectionClick();
+                        notifier.updateLogo(null);
+                      },
+                    )
+                  : const _LogoEmptyPreview(key: ValueKey('logo-placeholder')),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _pickLogo(context, notifier),
+                icon: Icon(
+                  hasLogo
+                      ? Icons.autorenew_rounded
+                      : Icons.add_photo_alternate_outlined,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(hasLogo ? 'Replace logo' : 'Upload logo'),
+                ),
+              ),
+            ),
+            if (hasLogo) ...[
+              const SizedBox(height: 16),
+              Text('Logo size', style: label),
+              const SizedBox(height: 8),
+              _LogoSizeSlider(
+                value: state.logoScale,
+                onChanged: (value) =>
+                    notifier.updateLogoScale(value, regenerate: false),
+                onChangeEnd: (value) =>
+                    notifier.updateLogoScale(value, regenerate: true),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${(state.logoScale * 100).round()}% of QR width',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Tip: high-contrast PNGs with transparent backgrounds scan best.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ],
         ),
       ),

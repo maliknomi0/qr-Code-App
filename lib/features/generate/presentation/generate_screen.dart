@@ -130,6 +130,8 @@ class GenerateScreen extends ConsumerWidget {
                     onChanged: notifier.updateData,
                   ),
                   const SizedBox(height: 16),
+                  _LogoCard(state: state, notifier: notifier),
+                  const SizedBox(height: 16),
                   _AppearanceCard(state: state, notifier: notifier),
                   const SizedBox(height: 24),
                   if (state.error != null)
@@ -285,7 +287,7 @@ class _AppearanceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final label = theme.textTheme.labelLarge;
-    final hasLogo = state.logoBytes != null;
+    // final hasLogo = state.logoBytes != null;
 
     return Card(
       elevation: 0,
@@ -413,70 +415,176 @@ class _AppearanceCard extends StatelessWidget {
                 'Remove spacing between modules for a crisp look',
               ),
             ),
+             ],
+        ),
+      ),
+    );
+  }
+}
 
             // Logo (moved from old Branding card)
-            const SizedBox(height: 16),
-            Text('Logo', style: label),
-            const SizedBox(height: 8),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: hasLogo
-                  ? _LogoLoadedPreview(
-                      key: const ValueKey('logo-preview'),
-                      bytes: state.logoBytes!,
-                      fileName: state.logoFileName,
-                      onRemove: () {
-                        HapticFeedback.selectionClick();
-                        notifier.updateLogo(null);
-                      },
-                    )
-                  : const _LogoEmptyPreview(key: ValueKey('logo-placeholder')),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _pickLogo(context, notifier),
-                icon: Icon(
-                  hasLogo
-                      ? Icons.autorenew_rounded
-                      : Icons.add_photo_alternate_outlined,
-                ),
-                label: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text(hasLogo ? 'Replace logo' : 'Upload logo'),
-                ),
+            class _LogoCard extends StatelessWidget {
+  const _LogoCard({required this.state, required this.notifier});
+
+  final GenerateState state;
+  final GenerateVm notifier;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasLogo = state.logoBytes != null;
+    final accentContainer = theme.colorScheme.secondaryContainer;
+    final onAccent = theme.colorScheme.onSecondaryContainer;
+    final subtleTextColor = theme.brightness == Brightness.dark
+        ? onAccent.withOpacity(0.8)
+        : theme.colorScheme.onSurfaceVariant;
+
+    return Card(
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Ink(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              accentContainer.withOpacity(
+                theme.brightness == Brightness.light ? 0.95 : 0.55,
+
               ),
-            ),
-            if (hasLogo) ...[
-              const SizedBox(height: 16),
-              Text('Logo size', style: label),
-              const SizedBox(height: 8),
-              _LogoSizeSlider(
-                value: state.logoScale,
-                onChanged: (value) =>
-                    notifier.updateLogoScale(value, regenerate: false),
-                onChangeEnd: (value) =>
-                    notifier.updateLogoScale(value, regenerate: true),
+            theme.colorScheme.surface,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: onAccent.withOpacity(0.12),
+                    ),
+                    child: Icon(
+                      Icons.workspace_premium_rounded,
+                      color: onAccent,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Logo & branding',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: onAccent,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Drop a transparent PNG or SVG to make your QR look premium.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: subtleTextColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '${(state.logoScale * 100).round()}% of QR width',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+              const SizedBox(height: 20),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                child: hasLogo
+                    ? _LogoLoadedPreview(
+                        key: const ValueKey('logo-preview'),
+                        bytes: state.logoBytes!,
+                        fileName: state.logoFileName,
+                        onRemove: () {
+                          HapticFeedback.selectionClick();
+                          notifier.updateLogo(null);
+                        },
+                      )
+                    : const _LogoEmptyPreview(
+                        key: ValueKey('logo-placeholder'),
+                      ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.tonalIcon(
+                  onPressed: () => _pickLogo(context, notifier),
+                  icon: Icon(
+                    hasLogo
+                        ? Icons.autorenew_rounded
+                        : Icons.add_photo_alternate_outlined,
+                  ),
+                  label: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(hasLogo ? 'Replace logo' : 'Upload logo'),
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Tip: high-contrast PNGs with transparent backgrounds scan best.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+              if (hasLogo) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      HapticFeedback.selectionClick();
+                      notifier.updateLogo(null);
+                    },
+                    icon: const Icon(Icons.delete_outline_rounded),
+                    label: const Text('Remove logo'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: onAccent,
+                    ),
+                  ),
                 ),
-              ),
+              // ),
+              const SizedBox(height: 8),
+                Text(
+                  'Logo size',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: onAccent,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _LogoSizeSlider(
+                  value: state.logoScale,
+                  onChanged: (value) =>
+                      notifier.updateLogoScale(value, regenerate: false),
+                  onChangeEnd: (value) =>
+                      notifier.updateLogoScale(value, regenerate: true),
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '${(state.logoScale * 100).round()}% of QR width',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: subtleTextColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Pro tip: bold, high-contrast logos with transparent backgrounds scan best.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: subtleTextColor,
+                  ),
+                ),
+              ],
             ],
-          ],
+            ),
         ),
       ),
     );

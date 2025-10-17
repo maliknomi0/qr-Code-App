@@ -25,6 +25,8 @@ class PdfMaker {
                 ),
                 pw.Text('Created: ${item.createdAt}'),
                 pw.Text('Source: ${_sourceLabel(item.source)}'),
+                if (item.tags.isNotEmpty)
+                  pw.Text('Tags: ${item.tags.join(', ')}'),
                 pw.SizedBox(height: 8),
               ],
             ),

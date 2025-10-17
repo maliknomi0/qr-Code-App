@@ -11,7 +11,8 @@ class QrItem {
     required this.createdAt,
     this.source = QrSource.unknown,
     this.isFavorite = false,
-  });
+    List<String>? tags,
+  }) : tags = tags ?? const [];
 
   final Uuid id;
   final QrType type;
@@ -19,8 +20,13 @@ class QrItem {
   final DateTime createdAt;
   final QrSource source;
   final bool isFavorite;
+  final List<String> tags;
 
-  QrItem copyWith({bool? isFavorite, QrSource? source}) {
+  QrItem copyWith({
+    bool? isFavorite,
+    QrSource? source,
+    List<String>? tags,
+  }) {
     return QrItem(
       id: id,
       type: type,
@@ -28,6 +34,7 @@ class QrItem {
       createdAt: createdAt,
       source: source ?? this.source,
       isFavorite: isFavorite ?? this.isFavorite,
+      tags: tags ?? this.tags,
     );
   }
 }

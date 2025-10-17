@@ -32,6 +32,7 @@ class GenerateState {
     this.logoBytes,
     this.logoFileName,
     this.logoScale = 0.22,
+    this.tags = const [],
   });
 
   final String data;
@@ -47,6 +48,7 @@ class GenerateState {
   final Uint8List? logoBytes;
   final String? logoFileName;
   final double logoScale;
+  final List<String> tags;
 
   static const Object _sentinel = Object();
 
@@ -64,6 +66,7 @@ class GenerateState {
     Object? logoBytes = _sentinel,
     Object? logoFileName = _sentinel,
     double? logoScale,
+    List<String>? tags,
   }) {
     return GenerateState(
       data: data ?? this.data,
@@ -85,6 +88,7 @@ class GenerateState {
           ? this.logoFileName
           : logoFileName as String?,
       logoScale: logoScale ?? this.logoScale,
+      tags: tags ?? this.tags,
     );
   }
 }
@@ -105,6 +109,7 @@ class GenerateVm extends StateNotifier<GenerateState> {
   final bool Function() _autoSaveGeneratedEnabled;
   bool _autoSaving = false;
   String? _lastAutoSavedData;
+  static const int maxTags = 6;
 
   Future<void> updateData(String data) async {
     state = state.copyWith(data: data, error: null);
@@ -123,6 +128,7 @@ class GenerateVm extends StateNotifier<GenerateState> {
         data: NonEmptyString(data),
         createdAt: DateTime.now(),
         source: QrSource.generated,
+        tags: _currentTagsForStorage(),
       );
       final result = await _saveItem(item);
       if (result.isErr) {
@@ -156,6 +162,7 @@ class GenerateVm extends StateNotifier<GenerateState> {
         data: NonEmptyString(data),
         createdAt: DateTime.now(),
         source: QrSource.generated,
+        tags: _currentTagsForStorage(),
       );
       final result = await _saveItem(item);
       if (result.isErr) {
@@ -229,6 +236,30 @@ class GenerateVm extends StateNotifier<GenerateState> {
     await _regenerate();
   }
 
+  void addTag(String tag) {
+    final normalized = _normalizeTag(tag);
+    if (normalized == null) return;
+    final existing = state.tags.map((t) => t.toLowerCase()).toSet();
+    if (existing.contains(normalized.toLowerCase())) return;
+    if (state.tags.length >= maxTags) return;
+    final updated = List<String>.from(state.tags)..add(normalized);
+    state = state.copyWith(tags: List.unmodifiable(updated));
+  }
+
+  void removeTag(String tag) {
+    final normalized = tag.toLowerCase();
+    final updated = state.tags
+        .where((element) => element.toLowerCase() != normalized)
+        .toList(growable: false);
+    if (updated.length == state.tags.length) return;
+    state = state.copyWith(tags: List.unmodifiable(updated));
+  }
+
+  void clearTags() {
+    if (state.tags.isEmpty) return;
+    state = state.copyWith(tags: const []);
+  }
+
   void updateLogoScale(double value, {bool regenerate = true}) {
     final normalized = value.clamp(0.12, 0.32);
     if ((normalized - state.logoScale).abs() > 0.0005) {
@@ -266,6 +297,27 @@ class GenerateVm extends StateNotifier<GenerateState> {
     if (result.isOk) {
       unawaited(_autoSaveCurrent(trimmed));
     }
+  }
+
+  List<String> _currentTagsForStorage() {
+    final seen = <String>{};
+    final result = <String>[];
+    for (final tag in state.tags) {
+      final normalized = _normalizeTag(tag);
+      if (normalized == null) continue;
+      final key = normalized.toLowerCase();
+      if (seen.add(key)) {
+        result.add(normalized);
+      }
+    }
+    return result;
+  }
+
+  String? _normalizeTag(String tag) {
+    final trimmed = tag.trim();
+    if (trimmed.isEmpty) return null;
+    final collapsed = trimmed.replaceAll(RegExp(r'\s+'), ' ');
+    return collapsed;
   }
 
   QrType _inferType(String value) {

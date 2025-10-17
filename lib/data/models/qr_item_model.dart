@@ -14,8 +14,7 @@ class QrItemModel extends HiveObject {
     required this.createdAt,
     required this.isFavorite,
     required this.source,
-    List<String>? tags,
-  }) : tags = tags ?? <String>[];
+  });
 
   String id;
   int type;
@@ -23,7 +22,6 @@ class QrItemModel extends HiveObject {
   DateTime createdAt;
   bool isFavorite;
   int source;
-  List<String> tags;
 
   factory QrItemModel.fromEntity(QrItem item) => QrItemModel(
     id: item.id.value,
@@ -32,7 +30,6 @@ class QrItemModel extends HiveObject {
     createdAt: item.createdAt,
     isFavorite: item.isFavorite,
     source: item.source.index,
-    tags: List<String>.from(item.tags),
   );
 
   QrItem toEntity() {
@@ -44,7 +41,6 @@ class QrItemModel extends HiveObject {
       createdAt: createdAt,
       source: QrSource.values[normalizedSource],
       isFavorite: isFavorite,
-      tags: List<String>.unmodifiable(tags),
     );
   }
 }
@@ -66,17 +62,6 @@ class QrItemModelAdapter extends TypeAdapter<QrItemModel> {
     } catch (_) {
       source = QrSource.unknown.index;
     }
-    List<String> tags;
-    try {
-      final dynamic raw = reader.read();
-      if (raw is List) {
-        tags = raw.cast<String>();
-      } else {
-        tags = <String>[];
-      }
-    } catch (_) {
-      tags = <String>[];
-    }
     return QrItemModel(
       id: id,
       type: type,
@@ -84,7 +69,6 @@ class QrItemModelAdapter extends TypeAdapter<QrItemModel> {
       createdAt: createdAt,
       isFavorite: isFavorite,
       source: source,
-      tags: tags,
     );
   }
 
@@ -96,7 +80,6 @@ class QrItemModelAdapter extends TypeAdapter<QrItemModel> {
       ..writeString(obj.data)
       ..writeInt(obj.createdAt.millisecondsSinceEpoch)
       ..writeBool(obj.isFavorite)
-      ..writeInt(obj.source)
-      ..write(obj.tags);
+      ..writeInt(obj.source);
   }
 }

@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_code/domain/entities/qr_source.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../app/di/providers.dart';
 import '../../../domain/entities/qr_item.dart';
 import '../../../domain/entities/qr_type.dart';
-
 
 enum _HistoryFilter { all, generated, scanned }
 
@@ -20,18 +20,19 @@ class HistoryScreen extends ConsumerStatefulWidget {
 }
 
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
-    late final TextEditingController _searchController;
+  late final TextEditingController _searchController;
   String _query = '';
   _HistoryFilter _filter = _HistoryFilter.all;
 
   @override
   void initState() {
     super.initState();
-        _searchController = TextEditingController();
+    _searchController = TextEditingController();
 
     Future.microtask(() => ref.read(historyVmProvider.notifier).load());
   }
-@override
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -42,7 +43,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     final state = ref.watch(historyVmProvider);
     final notifier = ref.watch(historyVmProvider.notifier);
     final theme = Theme.of(context);
-     final sourceFilter = switch (_filter) {
+    final sourceFilter = switch (_filter) {
       _HistoryFilter.all => null,
       _HistoryFilter.generated => QrSource.generated,
       _HistoryFilter.scanned => QrSource.scanned,
@@ -66,12 +67,13 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
     final totalCount = state.items.length;
     final filteredCount = filteredItems.length;
-    final isFiltered = _filter != _HistoryFilter.all || normalizedQuery.isNotEmpty;
+    final isFiltered =
+        _filter != _HistoryFilter.all || normalizedQuery.isNotEmpty;
     final subtitle = totalCount == 0
         ? 'Codes you create or scan live here'
         : isFiltered
-            ? '$filteredCount of $totalCount saved QR ${filteredCount == 1 ? 'code' : 'codes'}'
-            : '$totalCount saved QR ${totalCount == 1 ? 'code' : 'codes'}';
+        ? '$filteredCount of $totalCount saved QR ${filteredCount == 1 ? 'code' : 'codes'}'
+        : '$totalCount saved QR ${totalCount == 1 ? 'code' : 'codes'}';
 
     return Scaffold(
       extendBody: true,
@@ -83,7 +85,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             const Text('History'),
             const SizedBox(height: 2),
             Text(
-                  subtitle,
+              subtitle,
 
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
@@ -103,9 +105,13 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       HapticFeedback.selectionClick();
                       final path = await notifier.exportPdf();
                       if (path != null && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Exported PDF to $path')),
-                        );
+                        await Share.shareXFiles([
+                          XFile(
+                            path,
+                            mimeType: 'application/pdf',
+                            name: 'qr_history.pdf',
+                          ),
+                        ]);
                       }
                     },
               icon: const Icon(Icons.picture_as_pdf_rounded),
@@ -143,7 +149,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     child: _ErrorBanner(message: state.error!.message),
                   ),
                 ),
-                 if (!state.isLoading && (state.items.isNotEmpty || isFiltered))
+              if (!state.isLoading && (state.items.isNotEmpty || isFiltered))
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   sliver: SliverToBoxAdapter(
@@ -174,7 +180,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                   hasScrollBody: false,
                   child: _EmptyState(),
                 )
-                else if (filteredItems.isEmpty)
+              else if (filteredItems.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: _NoResults(
@@ -187,7 +193,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     },
                   ),
                 )
-             else
+              else
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                   sliver: SliverList.separated(
@@ -195,7 +201,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     separatorBuilder: (_, __) => const SizedBox(height: 16),
                     itemBuilder: (context, index) {
                       final item = filteredItems[index];
-                      final position = state.items.indexWhere((element) => element.id == item.id);
+                      final position = state.items.indexWhere(
+                        (element) => element.id == item.id,
+                      );
                       final displayIndex = position == -1 ? index : position;
                       return _HistoryCard(
                         item: item,
@@ -205,10 +213,14 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                         onDelete: () => notifier.delete(item.id.value),
                         onCopy: (ctx) async {
                           HapticFeedback.selectionClick();
-                          await Clipboard.setData(ClipboardData(text: item.data.value));
+                          await Clipboard.setData(
+                            ClipboardData(text: item.data.value),
+                          );
                           if (!mounted) return;
                           ScaffoldMessenger.of(ctx).showSnackBar(
-                            const SnackBar(content: Text('Copied to clipboard.')),
+                            const SnackBar(
+                              content: Text('Copied to clipboard.'),
+                            ),
                           );
                         },
                       );
@@ -309,7 +321,7 @@ class _SearchAndFilterBar extends StatelessWidget {
           controller: controller,
           hintText: 'Search history',
           leading: const Icon(Icons.search_rounded),
-          padding: const MaterialStatePropertyAll(
+          padding: const WidgetStatePropertyAll(
             EdgeInsets.symmetric(horizontal: 16),
           ),
           onChanged: onQueryChanged,
@@ -374,7 +386,7 @@ class _NoResults extends StatelessWidget {
             height: 120,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
+              color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.4),
             ),
             child: Icon(
               Icons.filter_alt_off_rounded,
@@ -383,10 +395,7 @@ class _NoResults extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          Text(
-            'No matches found',
-            style: theme.textTheme.titleLarge,
-          ),
+          Text('No matches found', style: theme.textTheme.titleLarge),
           const SizedBox(height: 12),
           Text(
             'Try a different search term or reset your filters to see everything again.',
@@ -421,7 +430,6 @@ class _HistoryCard extends StatelessWidget {
   final VoidCallback onFavorite;
   final VoidCallback onDelete;
   final Future<void> Function(BuildContext) onCopy;
-
 
   @override
   Widget build(BuildContext context) {
@@ -536,7 +544,7 @@ class _HistoryCard extends StatelessWidget {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                     Row(
+                        Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
@@ -549,8 +557,9 @@ class _HistoryCard extends StatelessWidget {
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
                             IconButton(
-                              tooltip:
-                                  item.isFavorite ? 'Remove favorite' : 'Add to favorites',
+                              tooltip: item.isFavorite
+                                  ? 'Remove favorite'
+                                  : 'Add to favorites',
                               visualDensity: VisualDensity.compact,
                               onPressed: () {
                                 HapticFeedback.selectionClick();
@@ -598,7 +607,10 @@ class _HistoryCard extends StatelessWidget {
     );
   }
 
-void _showActionsSheet(BuildContext context, Future<void> Function(BuildContext) onCopy) {
+  void _showActionsSheet(
+    BuildContext context,
+    Future<void> Function(BuildContext) onCopy,
+  ) {
     final theme = Theme.of(context);
     showModalBottomSheet<void>(
       context: context,
@@ -646,7 +658,7 @@ void _showActionsSheet(BuildContext context, Future<void> Function(BuildContext)
                     Icons.delete_outline,
                     color: theme.colorScheme.error,
                   ),
-                 title: const Text('Delete'),
+                  title: const Text('Delete'),
                   onTap: () async {
                     Navigator.pop(sheetContext);
                     final confirmed =
@@ -659,11 +671,13 @@ void _showActionsSheet(BuildContext context, Future<void> Function(BuildContext)
                             ),
                             actions: [
                               TextButton(
-                                onPressed: () => Navigator.pop(dialogContext, false),
+                                onPressed: () =>
+                                    Navigator.pop(dialogContext, false),
                                 child: const Text('Cancel'),
                               ),
                               FilledButton(
-                                onPressed: () => Navigator.pop(dialogContext, true),
+                                onPressed: () =>
+                                    Navigator.pop(dialogContext, true),
                                 child: const Text('Delete'),
                               ),
                             ],
@@ -860,6 +874,7 @@ String _weekdayName(int weekday) {
   const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   return names[(weekday - 1) % names.length];
 }
+
 String _sourceLabel(QrSource source) {
   switch (source) {
     case QrSource.generated:

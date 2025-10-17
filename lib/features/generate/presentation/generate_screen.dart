@@ -64,17 +64,17 @@ class GenerateScreen extends ConsumerWidget {
                       if (!context.mounted) return;
                       final error = notifier.state.error;
                       if (error != null) {
-                        ScaffoldMessenger.of(
-                          context,
-                        ).showSnackBar(SnackBar(content: Text(error.message)));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(error.message)),
+                        );
                         return;
                       }
                       final message = path != null && path.isNotEmpty
                           ? 'Saved to history & gallery'
                           : 'Saved to history';
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text(message)));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(message)),
+                      );
                     },
               icon: const Icon(Icons.bookmark_add_outlined),
             ),
@@ -106,9 +106,9 @@ class GenerateScreen extends ConsumerWidget {
                     HapticFeedback.lightImpact();
                     final path = await notifier.exportPng();
                     if (path != null && context.mounted) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text('Saved to $path')));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Saved to $path')),
+                      );
                     }
                   },
             icon: const Icon(Icons.ios_share),
@@ -287,7 +287,6 @@ class _AppearanceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final label = theme.textTheme.labelLarge;
-    // final hasLogo = state.logoBytes != null;
 
     return Card(
       elevation: 0,
@@ -391,7 +390,8 @@ class _AppearanceCard extends StatelessWidget {
             _SizeSlider(
               value: state.pixelSize.clamp(512, 2048).toDouble(),
               onChanged: (v) => notifier.updatePixelSize(v, regenerate: false),
-              onChangeEnd: (v) => notifier.updatePixelSize(v, regenerate: true),
+              onChangeEnd: (v) =>
+                  notifier.updatePixelSize(v, regenerate: true),
             ),
             Align(
               alignment: Alignment.centerLeft,
@@ -415,15 +415,15 @@ class _AppearanceCard extends StatelessWidget {
                 'Remove spacing between modules for a crisp look',
               ),
             ),
-             ],
+          ],
         ),
       ),
     );
   }
 }
 
-            // Logo (moved from old Branding card)
-            class _LogoCard extends StatelessWidget {
+// Logo (moved from old Branding card)
+class _LogoCard extends StatelessWidget {
   const _LogoCard({required this.state, required this.notifier});
 
   final GenerateState state;
@@ -433,76 +433,36 @@ class _AppearanceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final hasLogo = state.logoBytes != null;
-    final accentContainer = theme.colorScheme.secondaryContainer;
-    final onAccent = theme.colorScheme.onSecondaryContainer;
-    final subtleTextColor = theme.brightness == Brightness.dark
-        ? onAccent.withOpacity(0.8)
-        : theme.colorScheme.onSurfaceVariant;
+    final subtleTextColor = theme.colorScheme.onSurfaceVariant;
 
     return Card(
       elevation: 0,
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: Ink(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              accentContainer.withOpacity(
-                theme.brightness == Brightness.light ? 0.95 : 0.55,
-
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SectionHeader(
+              icon: Icons.workspace_premium_rounded,
+              title: 'Logo & branding',
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Drop a transparent PNG or SVG to make your QR look premium.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: subtleTextColor,
               ),
-            theme.colorScheme.surface,
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: onAccent.withOpacity(0.12),
-                    ),
-                    child: Icon(
-                      Icons.workspace_premium_rounded,
-                      color: onAccent,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Logo & branding',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: onAccent,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Drop a transparent PNG or SVG to make your QR look premium.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: subtleTextColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              AnimatedSwitcher(
+            ),
+            const SizedBox(height: 16),
+            InkWell(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                _pickLogo(context, notifier);
+              },
+              borderRadius: BorderRadius.circular(18),
+              child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 250),
                 child: hasLogo
                     ? _LogoLoadedPreview(
@@ -518,73 +478,51 @@ class _AppearanceCard extends StatelessWidget {
                         key: ValueKey('logo-placeholder'),
                       ),
               ),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.tonalIcon(
-                  onPressed: () => _pickLogo(context, notifier),
-                  icon: Icon(
-                    hasLogo
-                        ? Icons.autorenew_rounded
-                        : Icons.add_photo_alternate_outlined,
-                  ),
-                  label: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Text(hasLogo ? 'Replace logo' : 'Upload logo'),
-                  ),
+            ),
+            if (hasLogo) ...[
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    notifier.updateLogo(null);
+                  },
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  label: const Text('Remove logo'),
                 ),
               ),
-              if (hasLogo) ...[
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: () {
-                      HapticFeedback.selectionClick();
-                      notifier.updateLogo(null);
-                    },
-                    icon: const Icon(Icons.delete_outline_rounded),
-                    label: const Text('Remove logo'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: onAccent,
-                    ),
-                  ),
-                ),
-              // ),
               const SizedBox(height: 8),
-                Text(
-                  'Logo size',
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: onAccent,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _LogoSizeSlider(
-                  value: state.logoScale,
-                  onChanged: (value) =>
-                      notifier.updateLogoScale(value, regenerate: false),
-                  onChangeEnd: (value) =>
-                      notifier.updateLogoScale(value, regenerate: true),
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '${(state.logoScale * 100).round()}% of QR width',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: subtleTextColor,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Pro tip: bold, high-contrast logos with transparent backgrounds scan best.',
+              Text(
+                'Logo size',
+                style: theme.textTheme.labelLarge,
+              ),
+              const SizedBox(height: 8),
+              _LogoSizeSlider(
+                value: state.logoScale,
+                onChanged: (value) =>
+                    notifier.updateLogoScale(value, regenerate: false),
+                onChangeEnd: (value) =>
+                    notifier.updateLogoScale(value, regenerate: true),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${(state.logoScale * 100).round()}% of QR width',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: subtleTextColor,
                   ),
                 ),
-              ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Pro tip: bold, high-contrast logos with transparent backgrounds scan best.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: subtleTextColor,
+                ),
+              ),
             ],
-            ),
+          ],
         ),
       ),
     );
@@ -1000,15 +938,14 @@ class _EmptyPreview extends StatelessWidget {
     final theme = Theme.of(context);
     final effectiveColor =
         ThemeData.estimateBrightnessForColor(foregroundColor) ==
-            Brightness.light
-        ? theme.colorScheme.primary
-        : foregroundColor;
+                Brightness.light
+            ? theme.colorScheme.primary
+            : foregroundColor;
     return Center(
       child: Column(
         mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
-        mainAxisAlignment: compact
-            ? MainAxisAlignment.center
-            : MainAxisAlignment.start,
+        mainAxisAlignment:
+            compact ? MainAxisAlignment.center : MainAxisAlignment.start,
         children: [
           Icon(
             Icons.qr_code_2,

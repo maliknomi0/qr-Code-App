@@ -141,51 +141,54 @@ class SettingsScreen extends ConsumerWidget {
               title: 'Danger zone',
               subtitle: 'Clear your saved QR codes from this device.',
               tone: SectionTone.danger,
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: theme.colorScheme.error,
-                  foregroundColor: theme.colorScheme.onError,
-                ),
-                onPressed: () async {
-                  HapticFeedback.mediumImpact();
-                  final confirmed =
-                      await showDialog<bool>(
-                        context: context,
-                        builder: (context) => AlertDialog.adaptive(
-                          title: const Text('Clear history?'),
-                          content: const Text(
-                            'This permanently removes every saved QR code on this device.',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Cancel'),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: theme.colorScheme.error,
+                    foregroundColor: theme.colorScheme.onError,
+                  ),
+                  onPressed: () async {
+                    HapticFeedback.mediumImpact();
+                    final confirmed =
+                        await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog.adaptive(
+                            title: const Text('Clear history?'),
+                            content: const Text(
+                              'This permanently removes every saved QR code on this device.',
                             ),
-                            FilledButton.tonal(
-                              onPressed: () => Navigator.pop(context, true),
-                              style: FilledButton.styleFrom(
-                                backgroundColor:
-                                    theme.colorScheme.errorContainer,
-                                foregroundColor:
-                                    theme.colorScheme.onErrorContainer,
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('Cancel'),
                               ),
-                              child: const Text('Clear'),
-                            ),
-                          ],
-                        ),
-                      ) ??
-                      false;
-                  if (confirmed) {
-                    await notifier.clearHistory();
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('History cleared.')),
-                      );
+                              FilledButton.tonal(
+                                onPressed: () => Navigator.pop(context, true),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor:
+                                      theme.colorScheme.errorContainer,
+                                  foregroundColor:
+                                      theme.colorScheme.onErrorContainer,
+                                ),
+                                child: const Text('Clear'),
+                              ),
+                            ],
+                          ),
+                        ) ??
+                        false;
+                    if (confirmed) {
+                      await notifier.clearHistory();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('History cleared.')),
+                        );
+                      }
                     }
-                  }
-                },
-                icon: const Icon(Icons.delete_outline_rounded),
-                label: const Text('Clear history'),
+                  },
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  label: const Text('Clear history'),
+                ),
               ),
             ),
 

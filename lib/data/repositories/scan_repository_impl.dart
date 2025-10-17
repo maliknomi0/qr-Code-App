@@ -2,6 +2,7 @@ import '../../core/error/app_error.dart';
 import '../../core/functional/result.dart';
 import '../../core/logging/logger.dart';
 import '../../domain/entities/qr_item.dart';
+import '../../domain/entities/qr_source.dart';
 import '../../domain/entities/qr_type.dart';
 import '../../domain/repositories/scan_repository.dart';
 import '../../domain/value_objects/non_empty_string.dart';
@@ -28,6 +29,7 @@ class ScanRepositoryImpl implements ScanRepository {
         type: QrType.text,
         data: data,
         createdAt: DateTime.now(),
+        source: QrSource.scanned,
       );
       return Ok(item);
     } catch (error, stackTrace) {

@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/logging/logger.dart';
 import 'di/providers.dart';
-import 'router.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_controller.dart';
 
@@ -25,7 +24,8 @@ class QrToolApp extends ConsumerWidget {
       themeMode: themeMode,
       builder: (context, child) {
         logger.debug(
-          'Building app with locale: ' '${Localizations.localeOf(context)}',
+          'Building app with locale: '
+          '${Localizations.localeOf(context)}',
         );
         return child ?? const SizedBox.shrink();
       },

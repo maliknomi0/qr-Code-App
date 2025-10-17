@@ -13,9 +13,9 @@ import '../sources/local/hive_storage.dart';
 
 class HistoryRepositoryImpl implements HistoryRepository {
   HistoryRepositoryImpl(this._logger)
-      : _storage = HiveStorage(),
-        _fileExporter = FileExporter(),
-        _pdfMaker = PdfMaker();
+    : _storage = HiveStorage(),
+      _fileExporter = FileExporter(),
+      _pdfMaker = PdfMaker();
 
   final AppLogger _logger;
   final HiveStorage _storage;
@@ -82,7 +82,10 @@ class HistoryRepositoryImpl implements HistoryRepository {
   }
 
   @override
-  Future<Result<String>> exportPng(List<int> bytes, {required String fileName}) async {
+  Future<Result<String>> exportPng(
+    List<int> bytes, {
+    required String fileName,
+  }) async {
     try {
       final path = await _fileExporter.saveFile(bytes, '$fileName.png');
       return Ok(path);
@@ -93,13 +96,16 @@ class HistoryRepositoryImpl implements HistoryRepository {
   }
 
   @override
-  Future<Result<String>> saveToGallery(List<int> bytes, {required String fileName}) async {
+  Future<Result<String>> saveToGallery(
+    List<int> bytes, {
+    required String fileName,
+  }) async {
     try {
-      final path = await _fileExporter.saveImageToGallery(bytes, fileName);
-      if (path == null || path.isEmpty) {
+      final success = await _fileExporter.saveImageToGallery(bytes, fileName);
+      if (!success) {
         return Err(StorageError('Unable to save image to gallery'));
       }
-      return Ok(path);
+      return Ok(fileName);
     } catch (error, stackTrace) {
       _logger.error('Save to gallery failed', error, stackTrace);
       return Err(StorageError('Unable to save image to gallery', error));
@@ -107,7 +113,10 @@ class HistoryRepositoryImpl implements HistoryRepository {
   }
 
   @override
-  Future<Result<String>> exportPdf(List<QrItem> items, {required String fileName}) async {
+  Future<Result<String>> exportPdf(
+    List<QrItem> items, {
+    required String fileName,
+  }) async {
     try {
       final models = items.map(QrItemModel.fromEntity).toList();
       final data = await _pdfMaker.createHistoryPdf(models);

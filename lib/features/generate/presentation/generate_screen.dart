@@ -1,5 +1,7 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -20,6 +22,8 @@ class GenerateScreen extends ConsumerWidget {
     final notifier = ref.watch(generateVmProvider.notifier);
     final theme = Theme.of(context);
 
+    final canShare = state.pngBytes != null || state.data.trim().isNotEmpty;
+
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
@@ -38,6 +42,79 @@ class GenerateScreen extends ConsumerWidget {
             ),
           ),
         ),
+        actions: [
+          if (state.isSaving)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Center(
+                child: SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else
+            IconButton(
+              tooltip: 'Save',
+              onPressed: state.pngBytes == null
+                  ? null
+                  : () async {
+                      HapticFeedback.mediumImpact();
+                      final path = await notifier.saveToHistory();
+                      if (!context.mounted) return;
+                      final error = notifier.state.error;
+                      if (error != null) {
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text(error.message)));
+                        return;
+                      }
+                      final message = path != null && path.isNotEmpty
+                          ? 'Saved to history & gallery'
+                          : 'Saved to history';
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(message)));
+                    },
+              icon: const Icon(Icons.bookmark_add_outlined),
+            ),
+
+          // Share
+          IconButton(
+            tooltip: 'Share',
+            onPressed: canShare
+                ? () {
+                    HapticFeedback.selectionClick();
+                    showModalBottomSheet<void>(
+                      context: context,
+                      useSafeArea: true,
+                      showDragHandle: true,
+                      backgroundColor: Theme.of(context).colorScheme.surface,
+                      builder: (context) => _ShareSheet(state: state),
+                    );
+                  }
+                : null,
+            icon: const Icon(Icons.share_rounded),
+          ),
+
+          // Export PNG
+          IconButton(
+            tooltip: 'Export PNG',
+            onPressed: state.pngBytes == null
+                ? null
+                : () async {
+                    HapticFeedback.lightImpact();
+                    final path = await notifier.exportPng();
+                    if (path != null && context.mounted) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text('Saved to $path')));
+                    }
+                  },
+            icon: const Icon(Icons.ios_share),
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: SafeArea(
         child: CustomScrollView(
@@ -46,8 +123,6 @@ class GenerateScreen extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               sliver: SliverList.list(
                 children: [
-                  _HeaderBlurb(),
-                  const SizedBox(height: 12),
                   _PreviewCard(state: state),
                   const SizedBox(height: 16),
                   _ContentCard(
@@ -59,50 +134,16 @@ class GenerateScreen extends ConsumerWidget {
                   const SizedBox(height: 24),
                   if (state.error != null)
                     _ErrorBanner(message: state.error!.message),
-                  const SizedBox(height: 64), // spacer for bottom bar
+                  const SizedBox(height: 16),
                 ],
               ),
             ),
           ],
         ),
       ),
-      bottomNavigationBar: _BottomActions(state: state, notifier: notifier),
-    );
-  }
-}
 
-class _HeaderBlurb extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(
-          colors: [
-            theme.colorScheme.primary.withOpacity(0.05),
-            theme.colorScheme.surface,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      child: Row(
-        children: [
-          Icon(Icons.qr_code_2, color: theme.colorScheme.primary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Craft a scannable experience—enter content and tailor the style.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ],
-      ),
+      // ⛔️ Removed bottom bar
+      // bottomNavigationBar: _BottomActions(state: state, notifier: notifier),
     );
   }
 }
@@ -135,11 +176,13 @@ class _PreviewCard extends StatelessWidget {
                   end: Alignment.bottomRight,
                 ),
                 border: Border.all(color: theme.colorScheme.outlineVariant),
-                boxShadow: const [
+                boxShadow: [
                   BoxShadow(
                     blurRadius: 18,
-                    color: Colors.black12,
-                    offset: Offset(0, 10),
+                    color: theme.colorScheme.shadow.withOpacity(
+                      theme.brightness == Brightness.light ? 0.16 : 0.6,
+                    ),
+                    offset: const Offset(0, 10),
                   ),
                 ],
               ),
@@ -200,7 +243,6 @@ class _ContentCardState extends State<_ContentCard> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Card(
       elevation: 0,
       clipBehavior: Clip.antiAlias,
@@ -215,7 +257,6 @@ class _ContentCardState extends State<_ContentCard> {
             TextField(
               controller: _ctrl,
               decoration: const InputDecoration(
-                labelText: 'Data',
                 hintText: 'Enter URL, text, Wi-Fi config, or contact card',
                 alignLabelWithHint: true,
               ),
@@ -227,40 +268,10 @@ class _ContentCardState extends State<_ContentCard> {
               },
             ),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: [
-                _PresetChip(
-                  label: 'URL',
-                  onTap: () => _applyPreset('https://example.com'),
-                ),
-                _PresetChip(
-                  label: 'Text',
-                  onTap: () => _applyPreset('Hello from QR ✨'),
-                ),
-                _PresetChip(
-                  label: 'Wi-Fi',
-                  onTap: () => _applyPreset('WIFI:T:WPA;S:MyWiFi;P:password;;'),
-                ),
-                _PresetChip(
-                  label: 'vCard',
-                  onTap: () => _applyPreset(
-                    'BEGIN:VCARD\nVERSION:3.0\nN:Doe;Jane;;;\nTEL;CELL:+123456789\nEMAIL:jane@example.com\nEND:VCARD',
-                  ),
-                ),
-              ],
-            ),
           ],
         ),
       ),
     );
-  }
-
-  void _applyPreset(String value) {
-    _ctrl.text = value;
-    _ctrl.selection = TextSelection.collapsed(offset: value.length);
-    HapticFeedback.lightImpact();
-    widget.onChanged(value);
   }
 }
 
@@ -274,6 +285,7 @@ class _AppearanceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final label = theme.textTheme.labelLarge;
+    final hasLogo = state.logoBytes != null;
 
     return Card(
       elevation: 0,
@@ -285,54 +297,82 @@ class _AppearanceCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _SectionHeader(icon: Icons.brush_outlined, title: 'Appearance'),
+
+            // Colors
             const SizedBox(height: 12),
             Text('QR color', style: label),
             const SizedBox(height: 8),
-            _SwatchGrid(
-              colors: _Palette.colors,
-              selectedColor: state.foregroundColor,
-              onSelect: (c) => notifier.updateForegroundColor(c),
-            ),
-            _HexField(
-              initial: _hex(state.foregroundColor),
-              onSubmitted: (hex) {
-                final c = _tryParseHex(hex);
-                if (c != null) notifier.updateForegroundColor(c);
+            _ColorPreviewRow(
+              color: state.foregroundColor,
+              onPick: () async {
+                final color = await _showColorPicker(
+                  context,
+                  state.foregroundColor,
+                );
+                if (color != null) notifier.updateForegroundColor(color);
               },
             ),
             const SizedBox(height: 16),
             Text('Background', style: label),
             const SizedBox(height: 8),
-            _SwatchGrid(
-              colors: _Palette.backgrounds,
-              selectedColor: state.backgroundColor,
-              onSelect: (c) => notifier.updateBackgroundColor(c),
-            ),
-            _HexField(
-              initial: _hex(state.backgroundColor),
-              onSubmitted: (hex) {
-                final c = _tryParseHex(hex);
-                if (c != null) notifier.updateBackgroundColor(c);
+            _ColorPreviewRow(
+              color: state.backgroundColor,
+              onPick: () async {
+                final color = await _showColorPicker(
+                  context,
+                  state.backgroundColor,
+                );
+                if (color != null) notifier.updateBackgroundColor(color);
               },
+            ),
+
+            // Design + error correction
+            const SizedBox(height: 16),
+            Text('Design style', style: label),
+            const SizedBox(height: 8),
+            _EnumDropdown<QrDesign>(
+              value: state.design,
+              hint: 'Choose design',
+              onChanged: (v) => notifier.updateDesign(v),
+              items: QrDesign.values.map((design) {
+                return DropdownMenuItem<QrDesign>(
+                  value: design,
+                  child: Row(
+                    children: [
+                      Icon(_iconForDesign(design)),
+                      const SizedBox(width: 8),
+                      Text(_labelForDesign(design)),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Pick a module style that matches your vibe.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 16),
             Text('Error correction', style: label),
             const SizedBox(height: 8),
-            SegmentedButton<QrErrorCorrection>(
-              segments: QrErrorCorrection.values
-                  .map(
-                    (level) => ButtonSegment(
-                      value: level,
-                      label: Text(_labelForCorrection(level)),
-                      icon: Icon(_iconForCorrection(level)),
-                    ),
-                  )
-                  .toList(),
-              selected: {state.errorCorrection},
-              onSelectionChanged: (v) {
-                HapticFeedback.selectionClick();
-                notifier.updateErrorCorrection(v.first);
-              },
+            _EnumDropdown<QrErrorCorrection>(
+              value: state.errorCorrection,
+              hint: 'Choose level',
+              onChanged: (v) => notifier.updateErrorCorrection(v),
+              items: QrErrorCorrection.values.map((level) {
+                return DropdownMenuItem<QrErrorCorrection>(
+                  value: level,
+                  child: Row(
+                    children: [
+                      Icon(_iconForCorrection(level)),
+                      const SizedBox(width: 8),
+                      Text(_labelForCorrection(level)),
+                    ],
+                  ),
+                );
+              }).toList(),
             ),
             const SizedBox(height: 6),
             Text(
@@ -341,6 +381,8 @@ class _AppearanceCard extends StatelessWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+
+            // Export size + gapless
             const SizedBox(height: 16),
             Text('Export size', style: label),
             const SizedBox(height: 4),
@@ -371,110 +413,72 @@ class _AppearanceCard extends StatelessWidget {
                 'Remove spacing between modules for a crisp look',
               ),
             ),
+
+            // Logo (moved from old Branding card)
+            const SizedBox(height: 16),
+            Text('Logo', style: label),
+            const SizedBox(height: 8),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: hasLogo
+                  ? _LogoLoadedPreview(
+                      key: const ValueKey('logo-preview'),
+                      bytes: state.logoBytes!,
+                      fileName: state.logoFileName,
+                      onRemove: () {
+                        HapticFeedback.selectionClick();
+                        notifier.updateLogo(null);
+                      },
+                    )
+                  : const _LogoEmptyPreview(key: ValueKey('logo-placeholder')),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _pickLogo(context, notifier),
+                icon: Icon(
+                  hasLogo
+                      ? Icons.autorenew_rounded
+                      : Icons.add_photo_alternate_outlined,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(hasLogo ? 'Replace logo' : 'Upload logo'),
+                ),
+              ),
+            ),
+            if (hasLogo) ...[
+              const SizedBox(height: 16),
+              Text('Logo size', style: label),
+              const SizedBox(height: 8),
+              _LogoSizeSlider(
+                value: state.logoScale,
+                onChanged: (value) =>
+                    notifier.updateLogoScale(value, regenerate: false),
+                onChangeEnd: (value) =>
+                    notifier.updateLogoScale(value, regenerate: true),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${(state.logoScale * 100).round()}% of QR width',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Tip: high-contrast PNGs with transparent backgrounds scan best.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ],
         ),
       ),
-    );
-  }
-}
-
-class _BottomActions extends StatelessWidget {
-  const _BottomActions({required this.state, required this.notifier});
-
-  final GenerateState state;
-  final GenerateVm notifier;
-
-  @override
-  Widget build(BuildContext context) {
-    final canShare = state.pngBytes != null || state.data.trim().isNotEmpty;
-    return SafeArea(
-      top: false,
-      minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      child: Row(
-        children: [
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: state.pngBytes == null
-                  ? null
-                  : () async {
-                      HapticFeedback.mediumImpact();
-                      final path = await notifier.saveToHistory();
-                      if (!context.mounted) return;
-                      final error = notifier.state.error;
-                      if (error != null) {
-                        ScaffoldMessenger.of(
-                          context,
-                        ).showSnackBar(SnackBar(content: Text(error.message)));
-                        return;
-                      }
-                      final message = path != null && path.isNotEmpty
-                          ? 'Saved to history & gallery'
-                          : 'Saved to history';
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text(message)));
-                    },
-              icon: state.isSaving
-                  ? const SizedBox.square(
-                      dimension: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.bookmark_add_outlined),
-              label: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Text(state.isSaving ? 'Saving…' : 'Save'),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: FilledButton.tonalIcon(
-              onPressed: canShare
-                  ? () {
-                      HapticFeedback.selectionClick();
-                      _showShareSheet(context, state);
-                    }
-                  : null,
-              icon: const Icon(Icons.share_rounded),
-              label: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text('Share'),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: state.pngBytes == null
-                  ? null
-                  : () async {
-                      HapticFeedback.lightImpact();
-                      final path = await notifier.exportPng();
-                      if (path != null && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Saved to $path')),
-                        );
-                      }
-                    },
-              icon: const Icon(Icons.ios_share),
-              label: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text('Export PNG'),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showShareSheet(BuildContext context, GenerateState state) {
-    showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      showDragHandle: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      builder: (context) => _ShareSheet(state: state),
     );
   }
 }
@@ -613,76 +617,79 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _SwatchGrid extends StatelessWidget {
-  const _SwatchGrid({
-    required this.colors,
-    required this.selectedColor,
-    required this.onSelect,
-  });
+class _ColorPreviewRow extends StatelessWidget {
+  const _ColorPreviewRow({required this.color, required this.onPick});
 
-  final List<Color> colors;
-  final Color selectedColor;
-  final ValueChanged<Color> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: colors
-          .map(
-            (c) => _ColorSwatch(
-              color: c,
-              isSelected: selectedColor.value == c.value,
-              onTap: () => onSelect(c),
-            ),
-          )
-          .toList(),
-    );
-  }
-}
-
-class _HexField extends StatefulWidget {
-  const _HexField({required this.initial, required this.onSubmitted});
-  final String initial;
-  final ValueChanged<String> onSubmitted;
-
-  @override
-  State<_HexField> createState() => _HexFieldState();
-}
-
-class _HexFieldState extends State<_HexField> {
-  late final TextEditingController _hexCtrl = TextEditingController(
-    text: widget.initial,
-  );
-
-  @override
-  void dispose() {
-    _hexCtrl.dispose();
-    super.dispose();
-  }
+  final Color color;
+  final VoidCallback onPick;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: TextField(
-        controller: _hexCtrl,
-        textInputAction: TextInputAction.done,
-        decoration: InputDecoration(
-          labelText: 'HEX',
-          hintText: '#000000',
-          prefixIcon: const Icon(Icons.palette_outlined),
-          helperText: 'Enter color as #RRGGBB or #AARRGGBB',
-          helperStyle: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+    final outline = theme.colorScheme.outlineVariant;
+
+    return Row(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: outline),
           ),
         ),
-        onSubmitted: widget.onSubmitted,
-      ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            'Selected: ${_hex(color)}',
+            style: theme.textTheme.bodyMedium,
+          ),
+        ),
+        FilledButton.tonalIcon(
+          onPressed: onPick,
+          icon: const Icon(Icons.colorize),
+          label: const Text('Color picker'),
+        ),
+      ],
     );
   }
+}
+
+Future<Color?> _showColorPicker(BuildContext context, Color initialColor) {
+  return showDialog<Color>(
+    context: context,
+    builder: (context) {
+      var currentColor = initialColor;
+
+      return AlertDialog(
+        title: const Text('Pick a color'),
+        content: StatefulBuilder(
+          builder: (context, setState) {
+            return SingleChildScrollView(
+              child: ColorPicker(
+                pickerColor: currentColor,
+                onColorChanged: (color) => setState(() => currentColor = color),
+                enableAlpha: true,
+                displayThumbColor: true,
+                portraitOnly: true,
+              ),
+            );
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(currentColor),
+            child: const Text('Select'),
+          ),
+        ],
+      );
+    },
+  );
 }
 
 class _SizeSlider extends StatelessWidget {
@@ -724,6 +731,149 @@ class _SizeSlider extends StatelessWidget {
               Text('1536'),
               Text('2048'),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LogoSizeSlider extends StatelessWidget {
+  const _LogoSizeSlider({
+    required this.value,
+    required this.onChanged,
+    required this.onChangeEnd,
+  });
+
+  final double value;
+  final ValueChanged<double> onChanged;
+  final ValueChanged<double> onChangeEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = value.clamp(0.12, 0.32);
+    return SliderTheme(
+      data: SliderTheme.of(context).copyWith(
+        trackHeight: 6,
+        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+      ),
+      child: Slider(
+        value: normalized,
+        min: 0.12,
+        max: 0.32,
+        divisions: 10,
+        label: '${(normalized * 100).round()}%',
+        onChanged: onChanged,
+        onChangeEnd: onChangeEnd,
+      ),
+    );
+  }
+}
+
+class _LogoLoadedPreview extends StatelessWidget {
+  const _LogoLoadedPreview({
+    super.key,
+    required this.bytes,
+    required this.fileName,
+    required this.onRemove,
+  });
+
+  final Uint8List bytes;
+  final String? fileName;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Image.memory(
+              bytes,
+              width: 64,
+              height: 64,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  fileName ?? 'Custom logo',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Placed at the centre of your QR code.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Remove logo',
+            onPressed: onRemove,
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LogoEmptyPreview extends StatelessWidget {
+  const _LogoEmptyPreview({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.18),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.image_outlined,
+            size: 36,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'No logo selected',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Upload a PNG or JPG to brand your QR.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -803,88 +953,65 @@ class _ErrorBanner extends StatelessWidget {
   }
 }
 
-/// Swatches & palette — kept from your original, just bigger tap targets.
-class _ColorSwatch extends StatelessWidget {
-  const _ColorSwatch({
-    required this.color,
-    required this.isSelected,
-    required this.onTap,
+// ---------- Dropdown helper used to replace SegmentedButton ----------
+class _EnumDropdown<T> extends StatelessWidget {
+  const _EnumDropdown({
+    required this.value,
+    required this.items,
+    required this.onChanged,
+    this.hint,
   });
 
-  final Color color;
-  final bool isSelected;
-  final VoidCallback onTap;
+  final T value;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T> onChanged;
+  final String? hint;
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = isSelected
-        ? Theme.of(context).colorScheme.primary
-        : Colors.transparent;
-    final iconColor =
-        ThemeData.estimateBrightnessForColor(color) == Brightness.dark
-        ? Colors.white
-        : Colors.black87;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor, width: 2),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: borderColor.withOpacity(0.35),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ]
-              : const [],
-        ),
-        child: isSelected ? Icon(Icons.check, color: iconColor) : null,
+    return DropdownButtonFormField<T>(
+      initialValue: value,
+      items: items,
+      isExpanded: true,
+      hint: hint == null ? null : Text(hint!),
+      onChanged: (v) {
+        if (v == null) return;
+        HapticFeedback.selectionClick();
+        onChanged(v);
+      },
+      decoration: const InputDecoration(
+        border: OutlineInputBorder(),
+        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       ),
     );
   }
 }
 
-class _PresetChip extends StatelessWidget {
-  const _PresetChip({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ActionChip(
-      label: Text(label),
-      avatar: const Icon(Icons.add, size: 16),
-      onPressed: onTap,
-    );
+// ---------- Label/Icon helpers for enums ----------
+String _labelForDesign(QrDesign design) {
+  switch (design) {
+    case QrDesign.classic:
+      return 'Classic';
+    case QrDesign.roundedEyes:
+      return 'Rounded eyes';
+    case QrDesign.roundedModules:
+      return 'Rounded modules';
+    case QrDesign.roundedAll:
+      return 'Fully rounded';
   }
 }
 
-class _Palette {
-  static const List<Color> colors = [
-    Color(0xFF111827),
-    Color(0xFF1D4ED8),
-    Color(0xFF059669),
-    Color(0xFFCA8A04),
-    Color(0xFFBE123C),
-    Color(0xFF7C3AED),
-  ];
-
-  static const List<Color> backgrounds = [
-    Color(0xFFFFFFFF),
-    Color(0xFFF9FAFB),
-    Color(0xFFF1F5F9),
-    Color(0xFFFFF7ED),
-    Color(0xFFFDE68A),
-    Color(0xFF111827),
-  ];
+IconData _iconForDesign(QrDesign design) {
+  switch (design) {
+    case QrDesign.classic:
+      return Icons.grid_view;
+    case QrDesign.roundedEyes:
+      return Icons.center_focus_weak;
+    case QrDesign.roundedModules:
+      return Icons.blur_circular;
+    case QrDesign.roundedAll:
+      return Icons.bubble_chart;
+  }
 }
 
 String _labelForCorrection(QrErrorCorrection level) {
@@ -937,4 +1064,31 @@ Color? _tryParseHex(String input) {
     return Color.fromARGB(a, r, g, b);
   }
   return null;
+}
+
+// ---------- Logo picker (now used inside Appearance) ----------
+Future<void> _pickLogo(BuildContext context, GenerateVm notifier) async {
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.single;
+    final bytes = file.bytes;
+    if (bytes == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Unable to read the selected file.')),
+      );
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    await notifier.updateLogo(Uint8List.fromList(bytes), fileName: file.name);
+  } catch (error) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Image selection failed.')),
+    );
+  }
 }

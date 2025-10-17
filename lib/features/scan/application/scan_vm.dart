@@ -1,8 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:qr_code/core/error/app_error.dart';
+import 'package:qr_code/core/functional/result.dart';
 
-import '../../../core/error/app_error.dart';
-import '../../../core/functional/result.dart';
 import '../../../domain/entities/qr_item.dart';
+import '../../../domain/entities/qr_source.dart';
 import '../../../domain/entities/qr_type.dart';
 import '../../../domain/usecases/fetch_history_uc.dart';
 import '../../../domain/usecases/save_item_uc.dart';
@@ -31,11 +32,17 @@ class ScanState {
 }
 
 class ScanVm extends StateNotifier<ScanState> {
-  ScanVm(this._scanCode, this._saveItem, this._fetchHistory) : super(const ScanState());
+  ScanVm(
+    this._scanCode,
+    this._saveItem,
+    this._fetchHistory,
+    this._autoSaveEnabled,
+  ) : super(const ScanState());
 
   final ScanCodeUc _scanCode;
   final SaveItemUc _saveItem;
   final FetchHistoryUc _fetchHistory;
+  final bool Function() _autoSaveEnabled;
 
   Future<void> start() async {
     state = state.copyWith(isProcessing: true, error: null);
@@ -55,16 +62,32 @@ class ScanVm extends StateNotifier<ScanState> {
         type: _inferType(rawValue),
         data: NonEmptyString(rawValue),
         createdAt: DateTime.now(),
+        source: QrSource.scanned,
       );
-      final result = await _saveItem(item);
-      state = state.copyWith(
-        isProcessing: false,
-        lastItem: item,
-        error: result.errorOrNull,
-      );
+      if (_autoSaveEnabled()) {
+        final result = await _saveItem(item);
+        state = state.copyWith(
+          isProcessing: false,
+          lastItem: item,
+          error: result.errorOrNull,
+        );
+      } else {
+        state = state.copyWith(
+          isProcessing: false,
+          lastItem: item,
+        );
+      }
     } on AppError catch (error) {
       state = state.copyWith(isProcessing: false, error: error);
     }
+  }
+
+  Future<AppError?> saveItem(QrItem item) async {
+    final result = await _saveItem(item);
+    if (result.isErr) {
+      state = state.copyWith(error: result.errorOrNull);
+    }
+    return result.errorOrNull;
   }
 
   Future<List<QrItem>> loadHistory() async {

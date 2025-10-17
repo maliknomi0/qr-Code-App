@@ -23,6 +23,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   late final TextEditingController _searchController;
   String _query = '';
   _HistoryFilter _filter = _HistoryFilter.all;
+  Set<QrType> _typeFilters = <QrType>{};
 
   @override
   void initState() {
@@ -36,6 +37,21 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _openTypeFilterSheet() async {
+    final result = await showModalBottomSheet<Set<QrType>>(
+      context: context,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (context) => _TypeFilterSheet(initialSelection: _typeFilters),
+    );
+    if (!mounted) return;
+    if (result != null) {
+      setState(() {
+        _typeFilters = Set<QrType>.from(result);
+      });
+    }
   }
 
   @override
@@ -54,6 +70,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       if (sourceFilter != null && item.source != sourceFilter) {
         return false;
       }
+      if (_typeFilters.isNotEmpty && !_typeFilters.contains(item.type)) {
+        return false;
+      }
       if (normalizedQuery.isEmpty) return true;
       final value = item.data.value.toLowerCase();
       final typeLabel = _labelForType(item.type).toLowerCase();
@@ -68,7 +87,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     final totalCount = state.items.length;
     final filteredCount = filteredItems.length;
     final isFiltered =
-        _filter != _HistoryFilter.all || normalizedQuery.isNotEmpty;
+        _filter != _HistoryFilter.all ||
+        normalizedQuery.isNotEmpty ||
+        _typeFilters.isNotEmpty;
+    _filter != _HistoryFilter.all || normalizedQuery.isNotEmpty;
     final subtitle = totalCount == 0
         ? 'Codes you create or scan live here'
         : isFiltered
@@ -78,15 +100,16 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     return Scaffold(
       extendBody: true,
       appBar: AppBar(
+        toolbarHeight: 72, // or 80 if you use large text scales
         titleSpacing: 16,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min, // keep it as tight as possible
           children: [
             const Text('History'),
             const SizedBox(height: 2),
             Text(
               subtitle,
-
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w500,
@@ -157,6 +180,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       controller: _searchController,
                       query: _query,
                       filter: _filter,
+                      typeFilters: _typeFilters,
                       onQueryChanged: (value) {
                         setState(() {
                           _query = value;
@@ -167,6 +191,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                           _filter = value;
                         });
                       },
+                      onTypeFilterPressed: _openTypeFilterSheet,
                     ),
                   ),
                 ),
@@ -188,6 +213,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       setState(() {
                         _query = '';
                         _filter = _HistoryFilter.all;
+                        _typeFilters = <QrType>{};
                         _searchController.clear();
                       });
                     },
@@ -304,6 +330,8 @@ class _SearchAndFilterBar extends StatelessWidget {
     required this.filter,
     required this.onQueryChanged,
     required this.onFilterChanged,
+    required this.typeFilters,
+    required this.onTypeFilterPressed,
   });
 
   final TextEditingController controller;
@@ -311,9 +339,73 @@ class _SearchAndFilterBar extends StatelessWidget {
   final _HistoryFilter filter;
   final ValueChanged<String> onQueryChanged;
   final ValueChanged<_HistoryFilter> onFilterChanged;
+  final Set<QrType> typeFilters;
+  final Future<void> Function() onTypeFilterPressed;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasActiveTypeFilters = typeFilters.isNotEmpty;
+    final filterCount = typeFilters.length;
+    final sortedTypeFilters = typeFilters.toList()
+      ..sort((a, b) => a.index.compareTo(b.index));
+    Widget filterButton = IconButton(
+      tooltip: hasActiveTypeFilters
+          ? 'Filter types ($filterCount)'
+          : 'Filter types',
+      onPressed: () {
+        unawaited(onTypeFilterPressed());
+      },
+      icon: Icon(
+        Icons.filter_list_rounded,
+        color: hasActiveTypeFilters
+            ? theme.colorScheme.primary
+            : theme.colorScheme.onSurfaceVariant,
+      ),
+    );
+
+    if (hasActiveTypeFilters) {
+      filterButton = Stack(
+        clipBehavior: Clip.none,
+        children: [
+          filterButton,
+          Positioned(
+            right: 4,
+            top: 6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              child: Text(
+                '$filterCount',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onPrimary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    final trailingWidgets = <Widget>[
+      filterButton,
+      if (query.isNotEmpty)
+        IconButton(
+          tooltip: 'Clear search',
+          onPressed: () {
+            controller.clear();
+            onQueryChanged('');
+          },
+          icon: const Icon(Icons.close_rounded),
+        ),
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -325,19 +417,23 @@ class _SearchAndFilterBar extends StatelessWidget {
             EdgeInsets.symmetric(horizontal: 16),
           ),
           onChanged: onQueryChanged,
-          trailing: query.isEmpty
-              ? null
-              : [
-                  IconButton(
-                    tooltip: 'Clear search',
-                    onPressed: () {
-                      controller.clear();
-                      onQueryChanged('');
-                    },
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
+          trailing: trailingWidgets,
         ),
+        if (hasActiveTypeFilters) ...[
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: sortedTypeFilters
+                .map(
+                  (type) => _Chip(
+                    label: _labelForType(type),
+                    icon: _iconForType(type),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
         const SizedBox(height: 12),
         SegmentedButton<_HistoryFilter>(
           segments: const [
@@ -364,6 +460,105 @@ class _SearchAndFilterBar extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+class _TypeFilterSheet extends StatefulWidget {
+  const _TypeFilterSheet({required this.initialSelection});
+
+  final Set<QrType> initialSelection;
+
+  @override
+  State<_TypeFilterSheet> createState() => _TypeFilterSheetState();
+}
+
+class _TypeFilterSheetState extends State<_TypeFilterSheet> {
+  late Set<QrType> _selection;
+
+  @override
+  void initState() {
+    super.initState();
+    _selection = Set<QrType>.from(widget.initialSelection);
+  }
+
+  void _toggle(QrType type) {
+    setState(() {
+      if (_selection.contains(type)) {
+        _selection.remove(type);
+      } else {
+        _selection.add(type);
+      }
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selection.clear();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sortedTypes = QrType.values.toList()
+      ..sort((a, b) => a.index.compareTo(b.index));
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Filter by QR type', style: theme.textTheme.titleLarge),
+          const SizedBox(height: 8),
+          Text(
+            'Choose which kinds of codes to include, like websites or Wi‑Fi networks.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 20),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 320),
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                for (final type in sortedTypes)
+                  FilterChip(
+                    showCheckmark: true,
+                    label: Text(_labelForType(type)),
+                    avatar: Icon(
+                      _iconForType(type),
+                      size: 20,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    selected: _selection.contains(type),
+                    onSelected: (_) => _toggle(type),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              TextButton.icon(
+                onPressed: _selection.isEmpty ? null : _clearSelection,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Clear all'),
+              ),
+              const Spacer(),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(context, Set<QrType>.from(_selection));
+                },
+                child: Text(_selection.isEmpty ? 'Show all' : 'Show results'),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -614,6 +809,7 @@ class _HistoryCard extends StatelessWidget {
     final theme = Theme.of(context);
     showModalBottomSheet<void>(
       context: context,
+      // isScrollControlled: true,
       showDragHandle: true,
       useSafeArea: true,
       backgroundColor: theme.colorScheme.surface,

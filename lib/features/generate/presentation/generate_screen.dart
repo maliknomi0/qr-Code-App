@@ -64,17 +64,17 @@ class GenerateScreen extends ConsumerWidget {
                       if (!context.mounted) return;
                       final error = notifier.state.error;
                       if (error != null) {
-                        ScaffoldMessenger.of(
-                          context,
-                        ).showSnackBar(SnackBar(content: Text(error.message)));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(error.message)),
+                        );
                         return;
                       }
                       final message = path != null && path.isNotEmpty
                           ? 'Saved to history & gallery'
                           : 'Saved to history';
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text(message)));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(message)),
+                      );
                     },
               icon: const Icon(Icons.bookmark_add_outlined),
             ),
@@ -106,9 +106,9 @@ class GenerateScreen extends ConsumerWidget {
                     HapticFeedback.lightImpact();
                     final path = await notifier.exportPng();
                     if (path != null && context.mounted) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text('Saved to $path')));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Saved to $path')),
+                      );
                     }
                   },
             icon: const Icon(Icons.ios_share),
@@ -129,6 +129,8 @@ class GenerateScreen extends ConsumerWidget {
                     initial: state.data,
                     onChanged: notifier.updateData,
                   ),
+                  const SizedBox(height: 16),
+                  _LogoCard(state: state, notifier: notifier),
                   const SizedBox(height: 16),
                   _AppearanceCard(state: state, notifier: notifier),
                   const SizedBox(height: 24),
@@ -285,7 +287,6 @@ class _AppearanceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final label = theme.textTheme.labelLarge;
-    final hasLogo = state.logoBytes != null;
 
     return Card(
       elevation: 0,
@@ -389,7 +390,8 @@ class _AppearanceCard extends StatelessWidget {
             _SizeSlider(
               value: state.pixelSize.clamp(512, 2048).toDouble(),
               onChanged: (v) => notifier.updatePixelSize(v, regenerate: false),
-              onChangeEnd: (v) => notifier.updatePixelSize(v, regenerate: true),
+              onChangeEnd: (v) =>
+                  notifier.updatePixelSize(v, regenerate: true),
             ),
             Align(
               alignment: Alignment.centerLeft,
@@ -413,44 +415,88 @@ class _AppearanceCard extends StatelessWidget {
                 'Remove spacing between modules for a crisp look',
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-            // Logo (moved from old Branding card)
-            const SizedBox(height: 16),
-            Text('Logo', style: label),
-            const SizedBox(height: 8),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: hasLogo
-                  ? _LogoLoadedPreview(
-                      key: const ValueKey('logo-preview'),
-                      bytes: state.logoBytes!,
-                      fileName: state.logoFileName,
-                      onRemove: () {
-                        HapticFeedback.selectionClick();
-                        notifier.updateLogo(null);
-                      },
-                    )
-                  : const _LogoEmptyPreview(key: ValueKey('logo-placeholder')),
+// Logo (moved from old Branding card)
+class _LogoCard extends StatelessWidget {
+  const _LogoCard({required this.state, required this.notifier});
+
+  final GenerateState state;
+  final GenerateVm notifier;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasLogo = state.logoBytes != null;
+    final subtleTextColor = theme.colorScheme.onSurfaceVariant;
+
+    return Card(
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SectionHeader(
+              icon: Icons.workspace_premium_rounded,
+              title: 'Logo & branding',
             ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _pickLogo(context, notifier),
-                icon: Icon(
-                  hasLogo
-                      ? Icons.autorenew_rounded
-                      : Icons.add_photo_alternate_outlined,
-                ),
-                label: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text(hasLogo ? 'Replace logo' : 'Upload logo'),
-                ),
+            const SizedBox(height: 8),
+            Text(
+              'Drop a transparent PNG or SVG to make your QR look premium.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: subtleTextColor,
+              ),
+            ),
+            const SizedBox(height: 16),
+            InkWell(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                _pickLogo(context, notifier);
+              },
+              borderRadius: BorderRadius.circular(18),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                child: hasLogo
+                    ? _LogoLoadedPreview(
+                        key: const ValueKey('logo-preview'),
+                        bytes: state.logoBytes!,
+                        fileName: state.logoFileName,
+                        onRemove: () {
+                          HapticFeedback.selectionClick();
+                          notifier.updateLogo(null);
+                        },
+                      )
+                    : const _LogoEmptyPreview(
+                        key: ValueKey('logo-placeholder'),
+                      ),
               ),
             ),
             if (hasLogo) ...[
-              const SizedBox(height: 16),
-              Text('Logo size', style: label),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    notifier.updateLogo(null);
+                  },
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  label: const Text('Remove logo'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Logo size',
+                style: theme.textTheme.labelLarge,
+              ),
               const SizedBox(height: 8),
               _LogoSizeSlider(
                 value: state.logoScale,
@@ -464,15 +510,15 @@ class _AppearanceCard extends StatelessWidget {
                 child: Text(
                   '${(state.logoScale * 100).round()}% of QR width',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: subtleTextColor,
                   ),
                 ),
               ),
               const SizedBox(height: 8),
               Text(
-                'Tip: high-contrast PNGs with transparent backgrounds scan best.',
+                'Pro tip: bold, high-contrast logos with transparent backgrounds scan best.',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                  color: subtleTextColor,
                 ),
               ),
             ],
@@ -892,15 +938,14 @@ class _EmptyPreview extends StatelessWidget {
     final theme = Theme.of(context);
     final effectiveColor =
         ThemeData.estimateBrightnessForColor(foregroundColor) ==
-            Brightness.light
-        ? theme.colorScheme.primary
-        : foregroundColor;
+                Brightness.light
+            ? theme.colorScheme.primary
+            : foregroundColor;
     return Center(
       child: Column(
         mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
-        mainAxisAlignment: compact
-            ? MainAxisAlignment.center
-            : MainAxisAlignment.start,
+        mainAxisAlignment:
+            compact ? MainAxisAlignment.center : MainAxisAlignment.start,
         children: [
           Icon(
             Icons.qr_code_2,

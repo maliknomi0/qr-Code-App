@@ -504,60 +504,62 @@ class _TypeFilterSheetState extends State<_TypeFilterSheet> {
     final sortedTypes = QrType.values.toList()
       ..sort((a, b) => a.index.compareTo(b.index));
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Filter by QR type', style: theme.textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(
-            'Choose which kinds of codes to include, like websites or Wi‑Fi networks.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Filter by QR type', style: theme.textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Text(
+              'Choose which kinds of codes to include, like websites or Wi‑Fi networks.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 320),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                for (final type in sortedTypes)
-                  FilterChip(
-                    showCheckmark: true,
-                    label: Text(_labelForType(type)),
-                    avatar: Icon(
-                      _iconForType(type),
-                      size: 20,
-                      color: theme.colorScheme.onSurfaceVariant,
+            const SizedBox(height: 20),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 320),
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  for (final type in sortedTypes)
+                    FilterChip(
+                      showCheckmark: true,
+                      label: Text(_labelForType(type)),
+                      avatar: Icon(
+                        _iconForType(type),
+                        size: 20,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      selected: _selection.contains(type),
+                      onSelected: (_) => _toggle(type),
                     ),
-                    selected: _selection.contains(type),
-                    onSelected: (_) => _toggle(type),
-                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                TextButton.icon(
+                  onPressed: _selection.isEmpty ? null : _clearSelection,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Clear all'),
+                ),
+                const Spacer(),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.pop(context, Set<QrType>.from(_selection));
+                  },
+                  child: Text(_selection.isEmpty ? 'Show all' : 'Show results'),
+                ),
               ],
             ),
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              TextButton.icon(
-                onPressed: _selection.isEmpty ? null : _clearSelection,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Clear all'),
-              ),
-              const Spacer(),
-              FilledButton(
-                onPressed: () {
-                  Navigator.pop(context, Set<QrType>.from(_selection));
-                },
-                child: Text(_selection.isEmpty ? 'Show all' : 'Show results'),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

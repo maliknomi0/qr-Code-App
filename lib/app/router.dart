@@ -6,6 +6,7 @@ import '../features/generate/presentation/generate_screen.dart';
 import '../features/history/presentation/history_screen.dart';
 import '../features/scan/presentation/scan_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
+import 'navigation/navigation_providers.dart';
 
 GoRouter buildAppRouter(Ref ref) {
   return GoRouter(
@@ -20,9 +21,8 @@ GoRouter buildAppRouter(Ref ref) {
               GoRoute(
                 path: '/',
                 name: 'scan',
-                pageBuilder: (context, state) => const NoTransitionPage(
-                  child: ScanScreen(),
-                ),
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: ScanScreen()),
               ),
             ],
           ),
@@ -31,9 +31,8 @@ GoRouter buildAppRouter(Ref ref) {
               GoRoute(
                 path: '/generate',
                 name: 'generate',
-                pageBuilder: (context, state) => const NoTransitionPage(
-                  child: GenerateScreen(),
-                ),
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: GenerateScreen()),
               ),
             ],
           ),
@@ -42,9 +41,8 @@ GoRouter buildAppRouter(Ref ref) {
               GoRoute(
                 path: '/history',
                 name: 'history',
-                pageBuilder: (context, state) => const NoTransitionPage(
-                  child: HistoryScreen(),
-                ),
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: HistoryScreen()),
               ),
             ],
           ),
@@ -53,9 +51,8 @@ GoRouter buildAppRouter(Ref ref) {
               GoRoute(
                 path: '/settings',
                 name: 'settings',
-                pageBuilder: (context, state) => const NoTransitionPage(
-                  child: SettingsScreen(),
-                ),
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: SettingsScreen()),
               ),
             ],
           ),
@@ -65,7 +62,7 @@ GoRouter buildAppRouter(Ref ref) {
   );
 }
 
-class _HomeShell extends StatelessWidget {
+class _HomeShell extends ConsumerStatefulWidget {
   const _HomeShell({required this.shell});
 
   final StatefulNavigationShell shell;
@@ -78,18 +75,33 @@ class _HomeShell extends StatelessWidget {
   ];
 
   @override
+  ConsumerState<_HomeShell> createState() => _HomeShellState();
+}
+
+class _HomeShellState extends ConsumerState<_HomeShell> {
+  @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final controller = ref.read(currentHomeTabProvider.notifier);
+      if (controller.state != widget.shell.currentIndex) {
+        controller.state = widget.shell.currentIndex;
+      }
+    });
     return Scaffold(
-      body: SafeArea(child: shell),
+      body: SafeArea(child: widget.shell),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: shell.currentIndex,
-        onDestinationSelected: shell.goBranch,
+        selectedIndex: widget.shell.currentIndex,
+        onDestinationSelected: (index) {
+          widget.shell.goBranch(index);
+          final controller = ref.read(currentHomeTabProvider.notifier);
+          if (controller.state != index) {
+            controller.state = index;
+          }
+        },
         destinations: [
-          for (final tab in _tabs)
-            NavigationDestination(
-              icon: Icon(tab.icon),
-              label: tab.label,
-            ),
+          for (final tab in _HomeShell._tabs)
+            NavigationDestination(icon: Icon(tab.icon), label: tab.label),
         ],
       ),
     );

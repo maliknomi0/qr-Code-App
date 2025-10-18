@@ -1026,6 +1026,8 @@ class _AppearanceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final label = theme.textTheme.labelLarge;
+    final gaplessLocked = _shouldDisableGapless(state.design);
+
 
     return Card(
       elevation: 0,
@@ -1107,6 +1109,17 @@ class _AppearanceCard extends StatelessWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+            if (gaplessLocked)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  'Rounded modules need a small gap to stay circular. Gapless mode is turned off automatically.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             // const SizedBox(height: 16),
             // Text('Error correction', style: label),
             // const SizedBox(height: 8),
@@ -1156,14 +1169,18 @@ class _AppearanceCard extends StatelessWidget {
             const SizedBox(height: 4),
             SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
-              value: state.gapless,
-              onChanged: (v) {
-                HapticFeedback.selectionClick();
-                notifier.updateGapless(v);
-              },
+              value: gaplessLocked ? false : state.gapless,
+              onChanged: gaplessLocked
+                  ? null
+                  : (v) {
+                      HapticFeedback.selectionClick();
+                      notifier.updateGapless(v);
+                    },
               title: const Text('Gapless mode'),
-              subtitle: const Text(
-                'Remove spacing between modules for a crisp look',
+              subtitle: Text(
+                gaplessLocked
+                    ? 'Disabled for rounded styles to keep circles clean.'
+                    : 'Remove spacing between modules for a crisp look',
               ),
             ),
           ],
@@ -1772,6 +1789,10 @@ IconData _iconForDesign(QrDesign design) {
     case QrDesign.roundedAll:
       return Icons.bubble_chart;
   }
+}
+
+bool _shouldDisableGapless(QrDesign design) {
+  return design == QrDesign.roundedModules || design == QrDesign.roundedAll;
 }
 
 /// Helpers

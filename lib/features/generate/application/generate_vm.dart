@@ -205,6 +205,9 @@ class GenerateVm extends StateNotifier<GenerateState> {
   }
 
   Future<void> updateGapless(bool value) async {
+    if (_requiresGaplessDisabled(state.design) && value) {
+      return;
+    }
     if (value == state.gapless) return;
     state = state.copyWith(gapless: value, error: null);
     await _regenerate();
@@ -222,7 +225,12 @@ class GenerateVm extends StateNotifier<GenerateState> {
 
   Future<void> updateDesign(QrDesign design) async {
     if (design == state.design) return;
-    state = state.copyWith(design: design, error: null);
+    final requiresGaplessOff = _requiresGaplessDisabled(design);
+    state = state.copyWith(
+      design: design,
+      gapless: requiresGaplessOff ? false : state.gapless,
+      error: null,
+    );
     await _regenerate();
   }
 
@@ -277,4 +285,8 @@ class GenerateVm extends StateNotifier<GenerateState> {
   String _contentSignature(QrType type, String data) {
     return '${type.name}|$data';
   }
+}
+
+bool _requiresGaplessDisabled(QrDesign design) {
+  return design == QrDesign.roundedModules || design == QrDesign.roundedAll;
 }

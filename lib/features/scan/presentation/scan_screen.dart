@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,6 +30,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
   bool _torchOn = false;
   bool _usingFrontCamera = false;
   bool _isActiveTab = true;
+  bool _decodingImage = false;
 
   @override
   void initState() {
@@ -76,6 +78,56 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
       unawaited(_controller.stop());
       if (mounted && _torchOn) {
         setState(() => _torchOn = false);
+      }
+    }
+  }
+
+  Future<void> _pickFromGallery(BuildContext context) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+    );
+    if (result == null || result.files.isEmpty) {
+      return;
+    }
+    final file = result.files.single;
+    final path = file.path;
+    if (path == null || path.isEmpty) {
+      _showSnack(context, 'Unable to access the selected image.');
+      return;
+    }
+    if (mounted) {
+      setState(() => _decodingImage = true);
+    }
+    try {
+      await _controller.stop();
+      final capture = await _controller.analyzeImage(path);
+      if (!mounted) return;
+
+      // handle nullable capture
+      final barcodes = capture?.barcodes ?? const <Barcode>[];
+      final rawValue = barcodes
+          .map((barcode) => barcode.rawValue)
+          .whereType<String>()
+          .firstWhere((value) => value.trim().isNotEmpty, orElse: () => '');
+
+      if (rawValue.isEmpty) {
+        _showSnack(context, 'No QR code detected in the selected image.');
+        return;
+      }
+      await ref.read(scanVmProvider.notifier).onRawDetection(rawValue);
+    } on PlatformException catch (error) {
+      _showSnack(context, error.message ?? 'Failed to decode image.');
+      ref.read(loggerProvider).error('Gallery scan failed', error);
+    } catch (error, stackTrace) {
+      ref.read(loggerProvider).error('Gallery scan failed', error, stackTrace);
+      _showSnack(context, 'Failed to decode image.');
+    } finally {
+      if (mounted) {
+        setState(() => _decodingImage = false);
+        if (_isActiveTab) {
+          unawaited(_controller.start());
+        }
       }
     }
   }
@@ -178,6 +230,16 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
               setState(() => _usingFrontCamera = !_usingFrontCamera);
             },
           ),
+
+          IconButton(
+            tooltip: 'Scan from gallery',
+            icon: const Icon(Icons.photo_library_outlined),
+            onPressed: () async {
+              HapticFeedback.selectionClick();
+              await _pickFromGallery(context);
+            },
+          ),
+
           IconButton(
             tooltip: 'History',
             icon: const Icon(Icons.history_rounded),
@@ -214,10 +276,16 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
           ),
           const Positioned.fill(child: ScanOverlay()),
 
-          if (state.isProcessing) const _CaptureIndicator(),
+          if (state.isProcessing || _decodingImage) const _CaptureIndicator(),
         ],
       ),
     );
+  }
+
+  void _showSnack(BuildContext context, String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _showError(BuildContext context, AppError error) {
@@ -372,10 +440,7 @@ class _HistorySheetItem extends StatelessWidget {
         icon: _iconForSource(item.source),
       ),
       if (item.isFavorite)
-        const _HistorySheetChip(
-          label: 'Pinned',
-          icon: Icons.push_pin_rounded,
-        ),
+        const _HistorySheetChip(label: 'Pinned', icon: Icons.push_pin_rounded),
       _HistorySheetChip(
         label: item.id.value.substring(0, 8),
         icon: Icons.fingerprint_rounded,
@@ -399,10 +464,7 @@ class _HistorySheetItem extends StatelessWidget {
                     borderRadius: BorderRadius.circular(14),
                     color: iconColor.withOpacity(0.12),
                   ),
-                  child: Icon(
-                    _iconForType(item.type),
-                    color: iconColor,
-                  ),
+                  child: Icon(_iconForType(item.type), color: iconColor),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -426,8 +488,8 @@ class _HistorySheetItem extends StatelessWidget {
                     ],
                   ),
                 ),
-              // ),
-              IconButton(
+                // ),
+                IconButton(
                   tooltip: 'Copy',
                   icon: const Icon(Icons.copy_rounded),
                   color: iconColor,
@@ -438,20 +500,14 @@ class _HistorySheetItem extends StatelessWidget {
                       ClipboardData(text: item.data.value),
                     );
                     messenger.showSnackBar(
-                      const SnackBar(
-                        content: Text('Copied to clipboard.'),
-                      ),
+                      const SnackBar(content: Text('Copied to clipboard.')),
                     );
                   },
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: chips,
-            ),
+            Wrap(spacing: 8, runSpacing: 8, children: chips),
           ],
         ),
       ),
@@ -560,7 +616,6 @@ IconData _iconForSource(QrSource source) {
       return Icons.help_outline_rounded;
   }
 }
-
 
 String _formatTimestamp(BuildContext context, DateTime date) {
   final now = DateTime.now();

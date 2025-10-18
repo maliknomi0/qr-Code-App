@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../../domain/entities/qr_type.dart';
 
 import '../../../app/di/providers.dart';
 import '../../../domain/entities/qr_customization.dart';
@@ -64,17 +65,17 @@ class GenerateScreen extends ConsumerWidget {
                       if (!context.mounted) return;
                       final error = notifier.state.error;
                       if (error != null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(error.message)),
-                        );
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text(error.message)));
                         return;
                       }
                       final message = path != null && path.isNotEmpty
                           ? 'Saved to history & gallery'
                           : 'Saved to history';
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(message)),
-                      );
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(message)));
                     },
               icon: const Icon(Icons.bookmark_add_outlined),
             ),
@@ -106,9 +107,9 @@ class GenerateScreen extends ConsumerWidget {
                     HapticFeedback.lightImpact();
                     final path = await notifier.exportPng();
                     if (path != null && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Saved to $path')),
-                      );
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text('Saved to $path')));
                     }
                   },
             icon: const Icon(Icons.ios_share),
@@ -125,10 +126,7 @@ class GenerateScreen extends ConsumerWidget {
                 children: [
                   _PreviewCard(state: state),
                   const SizedBox(height: 16),
-                  _ContentCard(
-                    initial: state.data,
-                    onChanged: notifier.updateData,
-                  ),
+                  _ContentCard(state: state, notifier: notifier),
                   const SizedBox(height: 16),
                   _LogoCard(state: state, notifier: notifier),
                   const SizedBox(height: 16),
@@ -224,27 +222,83 @@ class _PreviewCard extends StatelessWidget {
 }
 
 class _ContentCard extends StatefulWidget {
-  const _ContentCard({this.initial, required this.onChanged});
-  final String? initial;
-  final ValueChanged<String> onChanged;
+  const _ContentCard({required this.state, required this.notifier});
+
+  final GenerateState state;
+  final GenerateVm notifier;
 
   @override
   State<_ContentCard> createState() => _ContentCardState();
 }
 
 class _ContentCardState extends State<_ContentCard> {
-  late final TextEditingController _ctrl = TextEditingController(
-    text: widget.initial ?? '',
-  );
+  static const List<QrType> _supportedTypes = <QrType>[
+    QrType.url,
+    QrType.text,
+    QrType.email,
+    QrType.sms,
+    QrType.wifi,
+  ];
+
+  late QrType _selectedType;
+
+  late final TextEditingController _textCtrl;
+  late final TextEditingController _urlCtrl;
+  late final TextEditingController _emailToCtrl;
+  late final TextEditingController _emailSubjectCtrl;
+  late final TextEditingController _emailBodyCtrl;
+  late final TextEditingController _smsPhoneCtrl;
+  late final TextEditingController _smsMessageCtrl;
+  late final TextEditingController _wifiSsidCtrl;
+  late final TextEditingController _wifiPasswordCtrl;
+
+  _WifiSecurity _wifiSecurity = _WifiSecurity.wpa;
+  bool _wifiHidden = false;
+  bool _showWifiPassword = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _textCtrl = TextEditingController();
+    _urlCtrl = TextEditingController();
+    _emailToCtrl = TextEditingController();
+    _emailSubjectCtrl = TextEditingController();
+    _emailBodyCtrl = TextEditingController();
+    _smsPhoneCtrl = TextEditingController();
+    _smsMessageCtrl = TextEditingController();
+    _wifiSsidCtrl = TextEditingController();
+    _wifiPasswordCtrl = TextEditingController();
+    _selectedType = _normalizeType(widget.state.contentType);
+    _syncFromState(widget.state, initialize: true);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ContentCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.state.data != oldWidget.state.data ||
+        widget.state.contentType != oldWidget.state.contentType) {
+      _syncFromState(widget.state);
+    }
+  }
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _textCtrl.dispose();
+    _urlCtrl.dispose();
+    _emailToCtrl.dispose();
+    _emailSubjectCtrl.dispose();
+    _emailBodyCtrl.dispose();
+    _smsPhoneCtrl.dispose();
+    _smsMessageCtrl.dispose();
+    _wifiSsidCtrl.dispose();
+    _wifiPasswordCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final label = theme.textTheme.labelLarge;
     return Card(
       elevation: 0,
       clipBehavior: Clip.antiAlias,
@@ -256,24 +310,708 @@ class _ContentCardState extends State<_ContentCard> {
           children: [
             _SectionHeader(icon: Icons.text_fields, title: 'QR Content'),
             const SizedBox(height: 8),
-            TextField(
-              controller: _ctrl,
-              decoration: const InputDecoration(
-                hintText: 'Enter URL, text, Wi-Fi config, or contact card',
-                alignLabelWithHint: true,
-              ),
-              minLines: 3,
-              maxLines: 6,
-              onChanged: (v) {
-                HapticFeedback.selectionClick();
-                widget.onChanged(v);
-              },
+            Text('Choose what to encode', style: label),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _supportedTypes.map((type) {
+                final isSelected = _selectedType == type;
+                return ChoiceChip(
+                  label: Text(_labelForType(type)),
+                  avatar: Icon(
+                    _iconForType(type),
+                    size: 20,
+                    color: isSelected
+                        ? theme.colorScheme.onSecondaryContainer
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
+                  selected: isSelected,
+                  onSelected: (value) {
+                    if (!value) return;
+                    HapticFeedback.selectionClick();
+                    setState(() {
+                      _selectedType = type;
+                    });
+                    _notifyChange();
+                  },
+                  selectedColor: theme.colorScheme.secondaryContainer,
+                  labelStyle: isSelected
+                      ? theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.onSecondaryContainer,
+                        )
+                      : null,
+                );
+              }).toList(),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: KeyedSubtree(
+                key: ValueKey(_selectedType),
+                child: _buildFormForType(),
+              ),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  QrType _normalizeType(QrType type) {
+    return _supportedTypes.contains(type) ? type : QrType.text;
+  }
+
+  void _syncFromState(GenerateState state, {bool initialize = false}) {
+    final normalizedType = _normalizeType(state.contentType);
+    final previousType = _selectedType;
+
+    switch (normalizedType) {
+      case QrType.text:
+        _setControllerText(_textCtrl, state.data);
+        break;
+      case QrType.url:
+        _setControllerText(_urlCtrl, state.data);
+        break;
+      case QrType.email:
+        final email = _parseEmailFields(state.data);
+        _setControllerText(_emailToCtrl, email.to);
+        _setControllerText(_emailSubjectCtrl, email.subject);
+        _setControllerText(_emailBodyCtrl, email.body);
+        break;
+      case QrType.sms:
+        final sms = _parseSmsFields(state.data);
+        _setControllerText(_smsPhoneCtrl, sms.phoneNumber);
+        _setControllerText(_smsMessageCtrl, sms.message);
+        break;
+      case QrType.wifi:
+        final wifi = _parseWifiFields(state.data);
+        _setControllerText(_wifiSsidCtrl, wifi.ssid);
+        _setControllerText(_wifiPasswordCtrl, wifi.password);
+        _wifiSecurity = wifi.security;
+        _wifiHidden = wifi.hidden;
+        break;
+      default:
+        _setControllerText(_textCtrl, state.data);
+        break;
+    }
+
+    if (initialize) {
+      _selectedType = normalizedType;
+      return;
+    }
+
+    if (previousType != normalizedType) {
+      setState(() {
+        _selectedType = normalizedType;
+      });
+    } else if (normalizedType == QrType.wifi) {
+      setState(() {});
+    }
+  }
+
+  void _notifyChange() {
+    final data = _buildDataForType(_selectedType);
+    widget.notifier.updateContent(_selectedType, data);
+  }
+
+  Widget _buildFormForType() {
+    switch (_selectedType) {
+      case QrType.url:
+        return _UrlForm(controller: _urlCtrl, onChanged: _notifyChange);
+      case QrType.email:
+        return _EmailForm(
+          toController: _emailToCtrl,
+          subjectController: _emailSubjectCtrl,
+          bodyController: _emailBodyCtrl,
+          onChanged: _notifyChange,
+        );
+      case QrType.sms:
+        return _SmsForm(
+          phoneController: _smsPhoneCtrl,
+          messageController: _smsMessageCtrl,
+          onChanged: _notifyChange,
+        );
+      case QrType.wifi:
+        return _WifiForm(
+          ssidController: _wifiSsidCtrl,
+          passwordController: _wifiPasswordCtrl,
+          security: _wifiSecurity,
+          hidden: _wifiHidden,
+          showPassword: _showWifiPassword,
+          onSecurityChanged: (value) {
+            setState(() {
+              _wifiSecurity = value;
+            });
+            _notifyChange();
+          },
+          onHiddenChanged: (value) {
+            setState(() {
+              _wifiHidden = value;
+            });
+            _notifyChange();
+          },
+          onTogglePasswordVisibility: () {
+            setState(() {
+              _showWifiPassword = !_showWifiPassword;
+            });
+          },
+          onChanged: _notifyChange,
+        );
+      case QrType.text:
+      default:
+        return _TextForm(controller: _textCtrl, onChanged: _notifyChange);
+    }
+  }
+
+  String _buildDataForType(QrType type) {
+    switch (type) {
+      case QrType.text:
+        return _textCtrl.text;
+      case QrType.url:
+        return _urlCtrl.text.trim();
+      case QrType.email:
+        final to = _emailToCtrl.text.trim();
+        final subject = _emailSubjectCtrl.text.trim();
+        final body = _emailBodyCtrl.text.trim();
+        if (to.isEmpty && subject.isEmpty && body.isEmpty) return '';
+        final query = <String, String>{};
+        if (subject.isNotEmpty) query['subject'] = subject;
+        if (body.isNotEmpty) query['body'] = body;
+        final uri = Uri(
+          scheme: 'mailto',
+          path: to,
+          queryParameters: query.isEmpty ? null : query,
+        );
+        return uri.toString();
+      case QrType.sms:
+        final phone = _smsPhoneCtrl.text.trim();
+        final message = _smsMessageCtrl.text.trim();
+        if (phone.isEmpty && message.isEmpty) return '';
+        final query = message.isEmpty
+            ? null
+            : <String, String>{'body': message};
+        final uri = Uri(scheme: 'sms', path: phone, queryParameters: query);
+        return uri.toString();
+      case QrType.wifi:
+        final ssid = _wifiSsidCtrl.text.trim();
+        final password = _wifiPasswordCtrl.text;
+        final hasPassword = password.trim().isNotEmpty;
+        if (ssid.isEmpty && !hasPassword) return '';
+        final buffer = StringBuffer('WIFI:');
+        buffer.write('T:${_wifiSecurity.qrValue};');
+        buffer.write('S:${_escapeWifiComponent(ssid)};');
+        if (_wifiSecurity != _WifiSecurity.none &&
+            (hasPassword || password.isNotEmpty)) {
+          buffer.write('P:${_escapeWifiComponent(password)};');
+        }
+        if (_wifiHidden) {
+          buffer.write('H:true;');
+        }
+        buffer.write(';');
+        return buffer.toString();
+      default:
+        return _textCtrl.text;
+    }
+  }
+
+  void _setControllerText(TextEditingController controller, String value) {
+    if (controller.text == value) return;
+    controller.value = controller.value.copyWith(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+      composing: TextRange.empty,
+    );
+  }
+
+  _EmailFields _parseEmailFields(String raw) {
+    if (raw.isEmpty) return const _EmailFields();
+    final lower = raw.toLowerCase();
+    if (lower.startsWith('mailto:')) {
+      final uri = Uri.tryParse(raw);
+      if (uri == null) return _EmailFields(to: raw);
+      final params = <String, String>{};
+      for (final entry in uri.queryParameters.entries) {
+        params[entry.key.toLowerCase()] = entry.value;
+      }
+      final to = uri.path.isNotEmpty ? uri.path : (params['to'] ?? '');
+      return _EmailFields(
+        to: to,
+        subject: params['subject'] ?? '',
+        body: params['body'] ?? '',
+      );
+    }
+
+    if (lower.startsWith('matmsg:')) {
+      final content = raw.substring(7);
+      String to = '';
+      String subject = '';
+      String body = '';
+      for (final part in content.split(';')) {
+        if (part.isEmpty) continue;
+        final normalized = part.startsWith('MATMSG:')
+            ? part.substring(7)
+            : part;
+        final index = normalized.indexOf(':');
+        if (index == -1) continue;
+        final key = normalized.substring(0, index).toLowerCase();
+        final value = _unescape(normalized.substring(index + 1));
+        switch (key) {
+          case 'to':
+            to = value;
+            break;
+          case 'sub':
+            subject = value;
+            break;
+          case 'body':
+            body = value;
+            break;
+        }
+      }
+      return _EmailFields(to: to, subject: subject, body: body);
+    }
+
+    return _EmailFields(to: raw);
+  }
+
+  _SmsFields _parseSmsFields(String raw) {
+    if (raw.isEmpty) return const _SmsFields();
+    final lower = raw.toLowerCase();
+    if (lower.startsWith('sms:') || lower.startsWith('smsto:')) {
+      final scheme = lower.startsWith('sms:') ? 'sms' : 'smsto';
+      final normalizedRaw = scheme == 'sms' ? raw : 'sms:${raw.substring(6)}';
+      final uri = Uri.tryParse(normalizedRaw);
+      if (uri == null) return _SmsFields(phoneNumber: raw);
+      final phone = uri.path.isNotEmpty
+          ? uri.path
+          : (uri.queryParameters['to'] ?? '');
+      final body = uri.queryParameters['body'] ?? '';
+      return _SmsFields(phoneNumber: phone, message: body);
+    }
+    return _SmsFields(phoneNumber: raw);
+  }
+
+  _WifiFields _parseWifiFields(String raw) {
+    if (!raw.toUpperCase().startsWith('WIFI:')) {
+      return const _WifiFields();
+    }
+    final content = raw.substring(5);
+    String ssid = '';
+    String password = '';
+    _WifiSecurity security = _WifiSecurity.wpa;
+    bool hidden = false;
+    for (final part in content.split(';')) {
+      if (part.isEmpty) continue;
+      final index = part.indexOf(':');
+      if (index == -1) continue;
+      final key = part.substring(0, index).toUpperCase();
+      final value = _unescape(part.substring(index + 1));
+      switch (key) {
+        case 'T':
+          security = _WifiSecurityExtension.fromQrValue(value);
+          break;
+        case 'S':
+          ssid = value;
+          break;
+        case 'P':
+          password = value;
+          break;
+        case 'H':
+          hidden = value.toLowerCase() == 'true';
+          break;
+      }
+    }
+    return _WifiFields(
+      ssid: ssid,
+      password: password,
+      security: security,
+      hidden: hidden,
+    );
+  }
+
+  String _escapeWifiComponent(String value) {
+    return value
+        .replaceAll('\\', r'\\')
+        .replaceAll(';', r'\;')
+        .replaceAll(',', r'\,')
+        .replaceAll(':', r'\:');
+  }
+
+  String _unescape(String input) {
+    final buffer = StringBuffer();
+    var escaping = false;
+    for (var i = 0; i < input.length; i++) {
+      final char = input[i];
+      if (escaping) {
+        switch (char) {
+          case 'n':
+            buffer.write('\n');
+            break;
+          case 'r':
+            buffer.write('\r');
+            break;
+          case 't':
+            buffer.write('\t');
+            break;
+          default:
+            buffer.write(char);
+        }
+        escaping = false;
+      } else if (char == '\\') {
+        escaping = true;
+      } else {
+        buffer.write(char);
+      }
+    }
+    if (escaping) buffer.write('\\');
+    return buffer.toString();
+  }
+}
+
+class _TextForm extends StatelessWidget {
+  const _TextForm({required this.controller, required this.onChanged});
+
+  final TextEditingController controller;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      decoration: const InputDecoration(
+        labelText: 'Plain text',
+        hintText: 'Type the message you want to share',
+        alignLabelWithHint: true,
+      ),
+      minLines: 4,
+      maxLines: 8,
+      onChanged: (_) => onChanged(),
+    );
+  }
+}
+
+class _UrlForm extends StatelessWidget {
+  const _UrlForm({required this.controller, required this.onChanged});
+
+  final TextEditingController controller;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Website URL',
+            hintText: 'https://example.com',
+          ),
+          keyboardType: TextInputType.url,
+          textInputAction: TextInputAction.done,
+          onChanged: (_) => onChanged(),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Include the full address so scanners can open it instantly.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EmailForm extends StatelessWidget {
+  const _EmailForm({
+    required this.toController,
+    required this.subjectController,
+    required this.bodyController,
+    required this.onChanged,
+  });
+
+  final TextEditingController toController;
+  final TextEditingController subjectController;
+  final TextEditingController bodyController;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: toController,
+          decoration: const InputDecoration(
+            labelText: 'Recipient',
+            hintText: 'name@example.com',
+          ),
+          keyboardType: TextInputType.emailAddress,
+          textInputAction: TextInputAction.next,
+          onChanged: (_) => onChanged(),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: subjectController,
+          decoration: const InputDecoration(labelText: 'Subject (optional)'),
+          textInputAction: TextInputAction.next,
+          onChanged: (_) => onChanged(),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: bodyController,
+          decoration: const InputDecoration(
+            labelText: 'Message (optional)',
+            alignLabelWithHint: true,
+          ),
+          minLines: 3,
+          maxLines: 6,
+          onChanged: (_) => onChanged(),
+        ),
+      ],
+    );
+  }
+}
+
+class _SmsForm extends StatelessWidget {
+  const _SmsForm({
+    required this.phoneController,
+    required this.messageController,
+    required this.onChanged,
+  });
+
+  final TextEditingController phoneController;
+  final TextEditingController messageController;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: phoneController,
+          decoration: const InputDecoration(
+            labelText: 'Phone number',
+            hintText: '+1 555 0100',
+          ),
+          keyboardType: TextInputType.phone,
+          textInputAction: TextInputAction.next,
+          onChanged: (_) => onChanged(),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: messageController,
+          decoration: const InputDecoration(
+            labelText: 'Message (optional)',
+            alignLabelWithHint: true,
+          ),
+          minLines: 2,
+          maxLines: 5,
+          onChanged: (_) => onChanged(),
+        ),
+      ],
+    );
+  }
+}
+
+class _WifiForm extends StatelessWidget {
+  const _WifiForm({
+    required this.ssidController,
+    required this.passwordController,
+    required this.security,
+    required this.hidden,
+    required this.showPassword,
+    required this.onSecurityChanged,
+    required this.onHiddenChanged,
+    required this.onTogglePasswordVisibility,
+    required this.onChanged,
+  });
+
+  final TextEditingController ssidController;
+  final TextEditingController passwordController;
+  final _WifiSecurity security;
+  final bool hidden;
+  final bool showPassword;
+  final ValueChanged<_WifiSecurity> onSecurityChanged;
+  final ValueChanged<bool> onHiddenChanged;
+  final VoidCallback onTogglePasswordVisibility;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<_WifiSecurity>(
+          value: security,
+          decoration: const InputDecoration(labelText: 'Security'),
+          items: _WifiSecurity.values
+              .map(
+                (security) => DropdownMenuItem<_WifiSecurity>(
+                  value: security,
+                  child: Text(security.label),
+                ),
+              )
+              .toList(),
+          onChanged: (value) {
+            if (value == null) return;
+            onSecurityChanged(value);
+          },
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: ssidController,
+          decoration: const InputDecoration(
+            labelText: 'Network name (SSID)',
+            hintText: 'Home Wi-Fi',
+          ),
+          textInputAction: TextInputAction.next,
+          onChanged: (_) => onChanged(),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: passwordController,
+          decoration: InputDecoration(
+            labelText: security == _WifiSecurity.none
+                ? 'Password (not required)'
+                : 'Password',
+            suffixIcon: security == _WifiSecurity.none
+                ? null
+                : IconButton(
+                    onPressed: onTogglePasswordVisibility,
+                    icon: Icon(
+                      showPassword ? Icons.visibility_off : Icons.visibility,
+                    ),
+                  ),
+          ),
+          obscureText: security != _WifiSecurity.none && !showPassword,
+          enabled: security != _WifiSecurity.none,
+          onChanged: (_) => onChanged(),
+        ),
+        const SizedBox(height: 8),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          value: hidden,
+          onChanged: onHiddenChanged,
+          title: const Text('Hidden network'),
+          subtitle: Text(
+            'Enable this if your Wi-Fi does not broadcast its name.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EmailFields {
+  const _EmailFields({this.to = '', this.subject = '', this.body = ''});
+
+  final String to;
+  final String subject;
+  final String body;
+}
+
+class _SmsFields {
+  const _SmsFields({this.phoneNumber = '', this.message = ''});
+
+  final String phoneNumber;
+  final String message;
+}
+
+class _WifiFields {
+  const _WifiFields({
+    this.ssid = '',
+    this.password = '',
+    this.security = _WifiSecurity.wpa,
+    this.hidden = false,
+  });
+
+  final String ssid;
+  final String password;
+  final _WifiSecurity security;
+  final bool hidden;
+}
+
+enum _WifiSecurity { wpa, wep, none }
+
+extension _WifiSecurityExtension on _WifiSecurity {
+  String get label {
+    switch (this) {
+      case _WifiSecurity.wpa:
+        return 'WPA/WPA2';
+      case _WifiSecurity.wep:
+        return 'WEP';
+      case _WifiSecurity.none:
+        return 'None';
+    }
+  }
+
+  String get qrValue {
+    switch (this) {
+      case _WifiSecurity.wpa:
+        return 'WPA';
+      case _WifiSecurity.wep:
+        return 'WEP';
+      case _WifiSecurity.none:
+        return 'nopass';
+    }
+  }
+
+  static _WifiSecurity fromQrValue(String raw) {
+    final normalized = raw.toUpperCase();
+    switch (normalized) {
+      case 'WPA':
+      case 'WPA2':
+        return _WifiSecurity.wpa;
+      case 'WEP':
+        return _WifiSecurity.wep;
+      case '':
+      case 'NOPASS':
+        return _WifiSecurity.none;
+      default:
+        return _WifiSecurity.wpa;
+    }
+  }
+}
+
+String _labelForType(QrType type) {
+  switch (type) {
+    case QrType.text:
+      return 'Text';
+    case QrType.url:
+      return 'URL';
+    case QrType.email:
+      return 'Email';
+    case QrType.sms:
+      return 'SMS';
+    case QrType.wifi:
+      return 'Wi-Fi';
+    default:
+      return 'Text';
+  }
+}
+
+IconData _iconForType(QrType type) {
+  switch (type) {
+    case QrType.text:
+      return Icons.notes_outlined;
+    case QrType.url:
+      return Icons.link_outlined;
+    case QrType.email:
+      return Icons.email_outlined;
+    case QrType.sms:
+      return Icons.sms_outlined;
+    case QrType.wifi:
+      return Icons.wifi;
+    default:
+      return Icons.notes_outlined;
   }
 }
 
@@ -331,20 +1069,32 @@ class _AppearanceCard extends StatelessWidget {
             const SizedBox(height: 16),
             Text('Design style', style: label),
             const SizedBox(height: 8),
-            _EnumDropdown<QrDesign>(
-              value: state.design,
-              hint: 'Choose design',
-              onChanged: (v) => notifier.updateDesign(v),
-              items: QrDesign.values.map((design) {
-                return DropdownMenuItem<QrDesign>(
-                  value: design,
-                  child: Row(
-                    children: [
-                      Icon(_iconForDesign(design)),
-                      const SizedBox(width: 8),
-                      Text(_labelForDesign(design)),
-                    ],
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: QrDesign.values.map((design) {
+                final selected = state.design == design;
+                return ChoiceChip(
+                  label: Text(_labelForDesign(design)),
+                  avatar: Icon(
+                    _iconForDesign(design),
+                    size: 20,
+                    color: selected
+                        ? theme.colorScheme.onSecondaryContainer
+                        : theme.colorScheme.onSurfaceVariant,
                   ),
+                  selected: selected,
+                  onSelected: (value) {
+                    if (!value) return;
+                    HapticFeedback.selectionClick();
+                    notifier.updateDesign(design);
+                  },
+                  selectedColor: theme.colorScheme.secondaryContainer,
+                  labelStyle: selected
+                      ? theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.onSecondaryContainer,
+                        )
+                      : null,
                 );
               }).toList(),
             ),
@@ -355,33 +1105,33 @@ class _AppearanceCard extends StatelessWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 16),
-            Text('Error correction', style: label),
-            const SizedBox(height: 8),
-            _EnumDropdown<QrErrorCorrection>(
-              value: state.errorCorrection,
-              hint: 'Choose level',
-              onChanged: (v) => notifier.updateErrorCorrection(v),
-              items: QrErrorCorrection.values.map((level) {
-                return DropdownMenuItem<QrErrorCorrection>(
-                  value: level,
-                  child: Row(
-                    children: [
-                      Icon(_iconForCorrection(level)),
-                      const SizedBox(width: 8),
-                      Text(_labelForCorrection(level)),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Higher levels make codes more resilient to damage but denser.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
+            // const SizedBox(height: 16),
+            // Text('Error correction', style: label),
+            // const SizedBox(height: 8),
+            // _EnumDropdown<QrErrorCorrection>(
+            //   value: state.errorCorrection,
+            //   hint: 'Choose level',
+            //   onChanged: (v) => notifier.updateErrorCorrection(v),
+            //   items: QrErrorCorrection.values.map((level) {
+            //     return DropdownMenuItem<QrErrorCorrection>(
+            //       value: level,
+            //       child: Row(
+            //         children: [
+            //           Icon(_iconForCorrection(level)),
+            //           const SizedBox(width: 8),
+            //           Text(_labelForCorrection(level)),
+            //         ],
+            //       ),
+            //     );
+            //   }).toList(),
+            // ),
+            // const SizedBox(height: 6),
+            // Text(
+            //   'Higher levels make codes more resilient to damage but denser.',
+            //   style: theme.textTheme.bodySmall?.copyWith(
+            //     color: theme.colorScheme.onSurfaceVariant,
+            //   ),
+            // ),
 
             // Export size + gapless
             const SizedBox(height: 16),
@@ -390,8 +1140,7 @@ class _AppearanceCard extends StatelessWidget {
             _SizeSlider(
               value: state.pixelSize.clamp(512, 2048).toDouble(),
               onChanged: (v) => notifier.updatePixelSize(v, regenerate: false),
-              onChangeEnd: (v) =>
-                  notifier.updatePixelSize(v, regenerate: true),
+              onChangeEnd: (v) => notifier.updatePixelSize(v, regenerate: true),
             ),
             Align(
               alignment: Alignment.centerLeft,
@@ -493,10 +1242,7 @@ class _LogoCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
-                'Logo size',
-                style: theme.textTheme.labelLarge,
-              ),
+              Text('Logo size', style: theme.textTheme.labelLarge),
               const SizedBox(height: 8),
               _LogoSizeSlider(
                 value: state.logoScale,
@@ -938,14 +1684,15 @@ class _EmptyPreview extends StatelessWidget {
     final theme = Theme.of(context);
     final effectiveColor =
         ThemeData.estimateBrightnessForColor(foregroundColor) ==
-                Brightness.light
-            ? theme.colorScheme.primary
-            : foregroundColor;
+            Brightness.light
+        ? theme.colorScheme.primary
+        : foregroundColor;
     return Center(
       child: Column(
         mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
-        mainAxisAlignment:
-            compact ? MainAxisAlignment.center : MainAxisAlignment.start,
+        mainAxisAlignment: compact
+            ? MainAxisAlignment.center
+            : MainAxisAlignment.start,
         children: [
           Icon(
             Icons.qr_code_2,
@@ -998,40 +1745,6 @@ class _ErrorBanner extends StatelessWidget {
   }
 }
 
-// ---------- Dropdown helper used to replace SegmentedButton ----------
-class _EnumDropdown<T> extends StatelessWidget {
-  const _EnumDropdown({
-    required this.value,
-    required this.items,
-    required this.onChanged,
-    this.hint,
-  });
-
-  final T value;
-  final List<DropdownMenuItem<T>> items;
-  final ValueChanged<T> onChanged;
-  final String? hint;
-
-  @override
-  Widget build(BuildContext context) {
-    return DropdownButtonFormField<T>(
-      initialValue: value,
-      items: items,
-      isExpanded: true,
-      hint: hint == null ? null : Text(hint!),
-      onChanged: (v) {
-        if (v == null) return;
-        HapticFeedback.selectionClick();
-        onChanged(v);
-      },
-      decoration: const InputDecoration(
-        border: OutlineInputBorder(),
-        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      ),
-    );
-  }
-}
-
 // ---------- Label/Icon helpers for enums ----------
 String _labelForDesign(QrDesign design) {
   switch (design) {
@@ -1056,32 +1769,6 @@ IconData _iconForDesign(QrDesign design) {
       return Icons.blur_circular;
     case QrDesign.roundedAll:
       return Icons.bubble_chart;
-  }
-}
-
-String _labelForCorrection(QrErrorCorrection level) {
-  switch (level) {
-    case QrErrorCorrection.low:
-      return 'Low';
-    case QrErrorCorrection.medium:
-      return 'Medium';
-    case QrErrorCorrection.quartile:
-      return 'Quartile';
-    case QrErrorCorrection.high:
-      return 'High';
-  }
-}
-
-IconData _iconForCorrection(QrErrorCorrection level) {
-  switch (level) {
-    case QrErrorCorrection.low:
-      return Icons.bolt_outlined;
-    case QrErrorCorrection.medium:
-      return Icons.shield_moon_outlined;
-    case QrErrorCorrection.quartile:
-      return Icons.shield_outlined;
-    case QrErrorCorrection.high:
-      return Icons.security_outlined;
   }
 }
 

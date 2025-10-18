@@ -20,6 +20,7 @@ import '../../../domain/value_objects/uuid.dart';
 class GenerateState {
   const GenerateState({
     this.data = '',
+    this.contentType = QrType.text,
     this.pngBytes,
     this.error,
     this.isSaving = false,
@@ -35,6 +36,7 @@ class GenerateState {
   });
 
   final String data;
+  final QrType contentType;
   final List<int>? pngBytes;
   final AppError? error;
   final bool isSaving;
@@ -52,6 +54,7 @@ class GenerateState {
 
   GenerateState copyWith({
     String? data,
+    QrType? contentType,
     Object? pngBytes = _sentinel,
     Object? error = _sentinel,
     bool? isSaving,
@@ -67,6 +70,7 @@ class GenerateState {
   }) {
     return GenerateState(
       data: data ?? this.data,
+      contentType: contentType ?? this.contentType,
       pngBytes: identical(pngBytes, _sentinel)
           ? this.pngBytes
           : pngBytes as List<int>?,
@@ -104,7 +108,14 @@ class GenerateVm extends StateNotifier<GenerateState> {
   final SaveToGalleryUc _saveToGallery;
   final bool Function() _autoSaveGeneratedEnabled;
   bool _autoSaving = false;
-  String? _lastAutoSavedData;
+  String? _lastAutoSavedSignature;
+
+  Future<void> updateContent(QrType type, String data) async {
+    final sanitized = type == QrType.text ? data : data.trim();
+    if (sanitized == state.data && type == state.contentType) return;
+    state = state.copyWith(data: sanitized, contentType: type, error: null);
+    await _regenerate();
+  }
 
   Future<void> updateData(String data) async {
     state = state.copyWith(data: data, error: null);
@@ -119,7 +130,7 @@ class GenerateVm extends StateNotifier<GenerateState> {
     try {
       final item = QrItem(
         id: Uuid.generate(),
-        type: _inferType(data),
+        type: state.contentType,
         data: NonEmptyString(data),
         createdAt: DateTime.now(),
         source: QrSource.generated,
@@ -129,7 +140,7 @@ class GenerateVm extends StateNotifier<GenerateState> {
         state = state.copyWith(isSaving: false, error: result.errorOrNull);
         return null;
       }
-      _lastAutoSavedData = data;
+      _lastAutoSavedSignature = _contentSignature(state.contentType, data);
 
       final galleryResult = await _saveToGallery(
         png,
@@ -143,16 +154,17 @@ class GenerateVm extends StateNotifier<GenerateState> {
     }
   }
 
-  Future<void> _autoSaveCurrent(String data) async {
+  Future<void> _autoSaveCurrent(String data, QrType type) async {
     if (!_autoSaveGeneratedEnabled()) return;
     if (state.pngBytes == null) return;
     if (_autoSaving) return;
-    if (_lastAutoSavedData == data) return;
+    final signature = _contentSignature(type, data);
+    if (_lastAutoSavedSignature == signature) return;
     _autoSaving = true;
     try {
       final item = QrItem(
         id: Uuid.generate(),
-        type: _inferType(data),
+        type: type,
         data: NonEmptyString(data),
         createdAt: DateTime.now(),
         source: QrSource.generated,
@@ -162,7 +174,7 @@ class GenerateVm extends StateNotifier<GenerateState> {
         state = state.copyWith(error: result.errorOrNull);
         return;
       }
-      _lastAutoSavedData = data;
+      _lastAutoSavedSignature = signature;
     } on AppError catch (error) {
       state = state.copyWith(error: error);
     } finally {
@@ -189,12 +201,6 @@ class GenerateVm extends StateNotifier<GenerateState> {
   Future<void> updateBackgroundColor(Color color) async {
     if (color.value == state.backgroundColor.value) return;
     state = state.copyWith(backgroundColor: color, error: null);
-    await _regenerate();
-  }
-
-  Future<void> updateErrorCorrection(QrErrorCorrection level) async {
-    if (level == state.errorCorrection) return;
-    state = state.copyWith(errorCorrection: level, error: null);
     await _regenerate();
   }
 
@@ -247,7 +253,7 @@ class GenerateVm extends StateNotifier<GenerateState> {
     }
     final result = await _generate(
       data: trimmed,
-      type: _inferType(trimmed),
+      type: state.contentType,
       customization: QrCustomization(
         foregroundColor: state.foregroundColor.value,
         backgroundColor: state.backgroundColor.value,
@@ -264,14 +270,11 @@ class GenerateVm extends StateNotifier<GenerateState> {
       error: result.errorOrNull,
     );
     if (result.isOk) {
-      unawaited(_autoSaveCurrent(trimmed));
+      unawaited(_autoSaveCurrent(trimmed, state.contentType));
     }
   }
 
-  QrType _inferType(String value) {
-    if (value.startsWith('http')) return QrType.url;
-    if (value.startsWith('WIFI')) return QrType.wifi;
-    if (value.startsWith('BEGIN:VCARD')) return QrType.vcard;
-    return QrType.text;
+  String _contentSignature(QrType type, String data) {
+    return '${type.name}|$data';
   }
 }

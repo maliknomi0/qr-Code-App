@@ -35,8 +35,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       final previousId = previous?.lastItem?.id;
       final nextItem = next.lastItem;
       if (nextItem != null && nextItem.id != previousId) {
- final autoSaved = ref.read(settingsVmProvider).autoSaveScanned;
-        _showResult(context, nextItem, autoSaved: autoSaved);      }
+        final autoSaved = ref.read(settingsVmProvider).autoSaveScanned;
+        _showResult(context, nextItem, autoSaved: autoSaved);
+      }
     });
 
     final state = ref.watch(scanVmProvider);
@@ -59,6 +60,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       extendBodyBehindAppBar: true,
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
+        toolbarHeight: 80,
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         foregroundColor: overlayTextColor,
@@ -164,7 +166,11 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     ).showSnackBar(SnackBar(content: Text(error.message)));
   }
 
-void _showResult(BuildContext context, QrItem item, {required bool autoSaved}) {
+  void _showResult(
+    BuildContext context,
+    QrItem item, {
+    required bool autoSaved,
+  }) {
     unawaited(_controller.stop());
     final theme = Theme.of(context);
     showModalBottomSheet<void>(
@@ -181,7 +187,9 @@ void _showResult(BuildContext context, QrItem item, {required bool autoSaved}) {
             : () async {
                 HapticFeedback.mediumImpact();
                 final messenger = ScaffoldMessenger.of(context);
-                final error = await ref.read(scanVmProvider.notifier).saveItem(item);
+                final error = await ref
+                    .read(scanVmProvider.notifier)
+                    .saveItem(item);
                 if (!context.mounted) return;
                 if (error != null) {
                   messenger.showSnackBar(
@@ -243,8 +251,13 @@ class _HistorySheet extends ConsumerWidget {
     final items = state.items.take(5).toList();
 
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          24,
+          16,
+          24,
+          32 + MediaQuery.viewInsetsOf(context).bottom,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -318,7 +331,9 @@ class _HistorySheet extends ConsumerWidget {
                             ClipboardData(text: item.data.value),
                           );
                           messenger.showSnackBar(
-                            const SnackBar(content: Text('Copied to clipboard.')),
+                            const SnackBar(
+                              content: Text('Copied to clipboard.'),
+                            ),
                           );
                         },
                       ),

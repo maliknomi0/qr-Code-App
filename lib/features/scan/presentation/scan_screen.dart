@@ -307,6 +307,21 @@ class _HistorySheet extends ConsumerWidget {
                           ],
                         ),
                       ),
+                      IconButton(
+                        tooltip: 'Copy',
+                        icon: const Icon(Icons.copy_rounded),
+                        color: theme.colorScheme.primary,
+                        onPressed: () async {
+                          HapticFeedback.selectionClick();
+                          final messenger = ScaffoldMessenger.of(context);
+                          await Clipboard.setData(
+                            ClipboardData(text: item.data.value),
+                          );
+                          messenger.showSnackBar(
+                            const SnackBar(content: Text('Copied to clipboard.')),
+                          );
+                        },
+                      ),
                     ],
                   ),
                 ),

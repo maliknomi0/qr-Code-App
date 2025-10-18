@@ -263,6 +263,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           notifier.load();
         },
         icon: const Icon(Icons.refresh_rounded),
+        backgroundColor: theme.colorScheme.primary,
+        foregroundColor: theme.colorScheme.onPrimary,
         label: const Text('Refresh'),
       ),
     );
@@ -528,7 +530,7 @@ class _TypeFilterSheetState extends State<_TypeFilterSheet> {
                 children: [
                   for (final type in sortedTypes)
                     FilterChip(
-                      showCheckmark: true,
+                      showCheckmark: false,
                       label: Text(_labelForType(type)),
                       avatar: Icon(
                         _iconForType(type),

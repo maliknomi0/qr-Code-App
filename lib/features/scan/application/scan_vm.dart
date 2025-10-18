@@ -102,9 +102,21 @@ class ScanVm extends StateNotifier<ScanState> {
   }
 
   QrType _inferType(String value) {
-    if (value.startsWith('http')) return QrType.url;
+    final lower = value.toLowerCase();
+    if (lower.startsWith('http://') || lower.startsWith('https://')) {
+      return QrType.url;
+    }
     if (value.startsWith('WIFI')) return QrType.wifi;
     if (value.startsWith('BEGIN:VCARD')) return QrType.vcard;
+    if (lower.startsWith('mailto:') || value.startsWith('MATMSG:')) {
+      return QrType.email;
+    }
+    if (lower.startsWith('tel:') || value.startsWith('TEL:')) {
+      return QrType.phone;
+    }
+    if (lower.startsWith('sms:') || lower.startsWith('smsto:')) {
+      return QrType.sms;
+    }
     return QrType.text;
   }
 }

@@ -336,6 +336,7 @@ class _ContentCardState extends State<_ContentCard> {
                     _notifyChange();
                   },
                   selectedColor: theme.colorScheme.secondaryContainer,
+                  showCheckmark: false,
                   labelStyle: isSelected
                       ? theme.textTheme.labelLarge?.copyWith(
                           color: theme.colorScheme.onSecondaryContainer,
@@ -1090,6 +1091,7 @@ class _AppearanceCard extends StatelessWidget {
                     notifier.updateDesign(design);
                   },
                   selectedColor: theme.colorScheme.secondaryContainer,
+                  showCheckmark: false,
                   labelStyle: selected
                       ? theme.textTheme.labelLarge?.copyWith(
                           color: theme.colorScheme.onSecondaryContainer,

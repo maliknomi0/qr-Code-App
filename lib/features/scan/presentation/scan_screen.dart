@@ -10,6 +10,7 @@ import 'package:qr_code/domain/entities/qr_source.dart';
 import 'package:qr_code/features/scan/presentation/widgets/scan_result_sheet.dart';
 
 import '../../../app/di/providers.dart';
+import '../../../app/navigation/navigation_providers.dart';
 import '../../../core/error/app_error.dart';
 import '../../../core/logging/logger.dart';
 import '../../../domain/entities/qr_type.dart';
@@ -22,10 +23,62 @@ class ScanScreen extends ConsumerStatefulWidget {
   ConsumerState<ScanScreen> createState() => _ScanScreenState();
 }
 
-class _ScanScreenState extends ConsumerState<ScanScreen> {
+class _ScanScreenState extends ConsumerState<ScanScreen>
+    with WidgetsBindingObserver {
   final MobileScannerController _controller = MobileScannerController();
   bool _torchOn = false;
   bool _usingFrontCamera = false;
+  bool _isActiveTab = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _isActiveTab = ref.read(currentHomeTabProvider) == scanTabIndex;
+    if (!_isActiveTab) {
+      unawaited(_controller.stop());
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        if (_isActiveTab) {
+          unawaited(_controller.start());
+        }
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        unawaited(_controller.stop());
+        break;
+      default:
+        // Hidden and any future lifecycle states should stop the camera.
+        unawaited(_controller.stop());
+        break;
+    }
+  }
+
+  void _handleTabVisibilityChanged(bool isActive) {
+    if (_isActiveTab == isActive) return;
+    _isActiveTab = isActive;
+    if (isActive) {
+      unawaited(_controller.start());
+    } else {
+      unawaited(_controller.stop());
+      if (mounted && _torchOn) {
+        setState(() => _torchOn = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +93,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         final autoSaved = ref.read(settingsVmProvider).autoSaveScanned;
         _showResult(context, nextItem, autoSaved: autoSaved);
       }
+    });
+
+    ref.listen<int>(currentHomeTabProvider, (previous, next) {
+      _handleTabVisibilityChanged(next == scanTabIndex);
     });
 
     final state = ref.watch(scanVmProvider);
@@ -99,6 +156,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
               _torchOn ? Icons.flash_on_rounded : Icons.flashlight_on_outlined,
             ),
             onPressed: () async {
+              if (!_isActiveTab) return;
               HapticFeedback.selectionClick();
               await _controller.toggleTorch();
               if (!mounted) return;
@@ -113,6 +171,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                   : Icons.camera_rear_rounded,
             ),
             onPressed: () async {
+              if (!_isActiveTab) return;
               HapticFeedback.selectionClick();
               await _controller.switchCamera();
               if (!mounted) return;
@@ -145,7 +204,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
               controller: _controller,
               fit: BoxFit.cover,
               onDetect: (capture) {
-                if (capture.barcodes.isEmpty) return;
+                if (!_isActiveTab || capture.barcodes.isEmpty) return;
                 final barcode = capture.barcodes.first.rawValue;
                 if (barcode != null) {
                   ref.read(scanVmProvider.notifier).onRawDetection(barcode);
@@ -206,7 +265,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
               },
       ),
     ).whenComplete(() {
-      if (!mounted) return;
+      if (!mounted || !_isActiveTab) return;
       _controller.start();
     });
   }

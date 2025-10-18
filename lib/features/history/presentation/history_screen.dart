@@ -7,6 +7,7 @@ import 'package:qr_code/domain/entities/qr_source.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../app/di/providers.dart';
+import '../../../core/utils/qr_parsers.dart';
 import '../../../domain/entities/qr_item.dart';
 import '../../../domain/entities/qr_type.dart';
 
@@ -77,11 +78,37 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       final value = item.data.value.toLowerCase();
       final typeLabel = _labelForType(item.type).toLowerCase();
       final sourceLabel = _sourceLabel(item.source).toLowerCase();
-      final idMatch = item.id.value.toLowerCase().contains(normalizedQuery);
-      return value.contains(normalizedQuery) ||
-          typeLabel.contains(normalizedQuery) ||
-          sourceLabel.contains(normalizedQuery) ||
-          idMatch;
+      final idValue = item.id.value.toLowerCase();
+      final candidates = <String>[value, typeLabel, sourceLabel, idValue];
+
+      final wifi = item.type == QrType.wifi ? parseWifi(item.data.value) : null;
+      if (wifi != null) {
+        candidates.add(wifi.ssid.toLowerCase());
+        if (wifi.password != null) {
+          candidates.add(wifi.password!.toLowerCase());
+        }
+      }
+
+      final email = item.type == QrType.email ? parseEmail(item.data.value) : null;
+      if (email != null) {
+        candidates.add(email.to.toLowerCase());
+        if (email.subject != null) {
+          candidates.add(email.subject!.toLowerCase());
+        }
+        if (email.body != null) {
+          candidates.add(email.body!.toLowerCase());
+        }
+      }
+
+      final sms = item.type == QrType.sms ? parseSms(item.data.value) : null;
+      if (sms != null) {
+        candidates.add(sms.phoneNumber.toLowerCase());
+        if (sms.message != null) {
+          candidates.add(sms.message!.toLowerCase());
+        }
+      }
+
+      return candidates.any((candidate) => candidate.contains(normalizedQuery));
     }).toList();
 
     final totalCount = state.items.length;
@@ -90,7 +117,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         _filter != _HistoryFilter.all ||
         normalizedQuery.isNotEmpty ||
         _typeFilters.isNotEmpty;
-    _filter != _HistoryFilter.all || normalizedQuery.isNotEmpty;
+    // _filter != _HistoryFilter.all || normalizedQuery.isNotEmpty;
     final subtitle = totalCount == 0
         ? 'Codes you create or scan live here'
         : isFiltered
@@ -636,6 +663,82 @@ class _HistoryCard extends StatelessWidget {
     final type = item.type;
     final icon = _iconForType(type);
     final accent = theme.colorScheme.secondaryContainer;
+    final wifi = item.type == QrType.wifi ? parseWifi(item.data.value) : null;
+    final email = item.type == QrType.email ? parseEmail(item.data.value) : null;
+    final sms = item.type == QrType.sms ? parseSms(item.data.value) : null;
+    final summary = wifi?.ssid ?? email?.to ?? sms?.phoneNumber ?? item.data.value;
+
+    Future<void> copyField(String value, String label) async {
+      await Clipboard.setData(ClipboardData(text: value));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$label copied to clipboard.')),
+      );
+    }
+
+    final detailTiles = <Widget>[];
+
+    if (wifi != null) {
+      detailTiles.add(
+        _DetailTile(
+          label: 'Network name',
+          value: wifi.ssid,
+          onCopy: () => copyField(wifi.ssid, 'Wi-Fi name'),
+        ),
+      );
+      detailTiles.add(
+        _DetailTile(
+          label: 'Password',
+          value: wifi.password ?? 'Not required',
+          onCopy: wifi.password == null
+              ? null
+              : () => copyField(wifi.password!, 'Wi-Fi password'),
+        ),
+      );
+    } else if (email != null) {
+      detailTiles.add(
+        _DetailTile(
+          label: 'Recipient',
+          value: email.to,
+          onCopy: () => copyField(email.to, 'Email recipient'),
+        ),
+      );
+      if (email.subject != null) {
+        detailTiles.add(
+          _DetailTile(
+            label: 'Subject',
+            value: email.subject!,
+            onCopy: () => copyField(email.subject!, 'Email subject'),
+          ),
+        );
+      }
+      if (email.body != null) {
+        detailTiles.add(
+          _DetailTile(
+            label: 'Message',
+            value: email.body!,
+            onCopy: () => copyField(email.body!, 'Email body'),
+          ),
+        );
+      }
+    } else if (sms != null) {
+      detailTiles.add(
+        _DetailTile(
+          label: 'Send to',
+          value: sms.phoneNumber,
+          onCopy: () => copyField(sms.phoneNumber, 'SMS recipient'),
+        ),
+      );
+      if (sms.message != null) {
+        detailTiles.add(
+          _DetailTile(
+            label: 'Message',
+            value: sms.message!,
+            onCopy: () => copyField(sms.message!, 'SMS body'),
+          ),
+        );
+      }
+    }
 
     return Dismissible(
       key: ValueKey(item.id.value),
@@ -731,7 +834,7 @@ class _HistoryCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            item.data.value,
+                            summary,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.titleMedium,
@@ -780,11 +883,15 @@ class _HistoryCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 18),
+                if (detailTiles.isNotEmpty) ...[
+                  ...detailTiles,
+                  const SizedBox(height: 6),
+                ],
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    _Chip(label: _formatTimestamp(context, item.createdAt)),
+                    // _Chip(label: _formatTimestamp(context, item.createdAt)),
                     _Chip(label: _formatTimestamp(context, item.createdAt)),
                     _Chip(
                       label: _sourceLabel(item.source),
@@ -811,6 +918,9 @@ class _HistoryCard extends StatelessWidget {
     Future<void> Function(BuildContext) onCopy,
   ) {
     final theme = Theme.of(context);
+    final wifi = item.type == QrType.wifi ? parseWifi(item.data.value) : null;
+    final email = item.type == QrType.email ? parseEmail(item.data.value) : null;
+    final sms = item.type == QrType.sms ? parseSms(item.data.value) : null;
     showModalBottomSheet<void>(
       context: context,
       // isScrollControlled: true,
@@ -818,6 +928,51 @@ class _HistoryCard extends StatelessWidget {
       useSafeArea: true,
       backgroundColor: theme.colorScheme.surface,
       builder: (sheetContext) {
+        final extraCopyTiles = <Widget>[];
+
+        Future<void> copyAndClose(String value, String label) async {
+          Navigator.pop(sheetContext);
+          await Clipboard.setData(ClipboardData(text: value));
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('$label copied to clipboard.')),
+          );
+        }
+
+        void addCopyTile(String label, String value, IconData icon) {
+          extraCopyTiles.add(
+            ListTile(
+              leading: Icon(icon, color: theme.colorScheme.primary),
+              title: Text('Copy $label'),
+              onTap: () => copyAndClose(value, label),
+            ),
+          );
+        }
+
+        if (wifi != null) {
+          addCopyTile('Wi-Fi name', wifi.ssid, Icons.wifi_rounded);
+          if (wifi.password != null) {
+            addCopyTile(
+              'Wi-Fi password',
+              wifi.password!,
+              Icons.lock_outline,
+            );
+          }
+        } else if (email != null) {
+          addCopyTile('Email recipient', email.to, Icons.person_outline_rounded);
+          if (email.subject != null) {
+            addCopyTile('Email subject', email.subject!, Icons.subject_rounded);
+          }
+          if (email.body != null) {
+            addCopyTile('Email body', email.body!, Icons.notes_rounded);
+          }
+        } else if (sms != null) {
+          addCopyTile('SMS recipient', sms.phoneNumber, Icons.phone_rounded);
+          if (sms.message != null) {
+            addCopyTile('SMS body', sms.message!, Icons.sms_rounded);
+          }
+        }
+
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
@@ -838,6 +993,8 @@ class _HistoryCard extends StatelessWidget {
                     await onCopy(context);
                   },
                 ),
+                ...extraCopyTiles,
+                if (extraCopyTiles.isNotEmpty) const Divider(),
                 ListTile(
                   leading: Icon(
                     item.isFavorite
@@ -897,6 +1054,67 @@ class _HistoryCard extends StatelessWidget {
     );
   }
 }
+
+class _DetailTile extends StatelessWidget {
+  const _DetailTile({
+    required this.label,
+    required this.value,
+    this.onCopy,
+  });
+
+  final String label;
+  final String value;
+  final VoidCallback? onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.45),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SelectableText(
+                  value,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (onCopy != null)
+            IconButton(
+              tooltip: 'Copy',
+              icon: const Icon(Icons.copy_rounded),
+              color: theme.colorScheme.primary,
+              visualDensity: VisualDensity.compact,
+              onPressed: onCopy,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 
 class _Chip extends StatelessWidget {
   const _Chip({required this.label, this.icon});

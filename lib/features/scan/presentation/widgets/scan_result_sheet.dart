@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
+import '../../../../core/utils/qr_parsers.dart';
 import '../../../../core/utils/uri_utils.dart';
 import '../../../../domain/entities/qr_item.dart';
 import '../../../../domain/entities/qr_type.dart';
@@ -19,7 +19,10 @@ class ScanResultSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final wifi = item.type == QrType.wifi ? _parseWifi(item.data.value) : null;
+    final wifi = item.type == QrType.wifi ? parseWifi(item.data.value) : null;
+    final email =
+        item.type == QrType.email ? parseEmail(item.data.value) : null;
+    final sms = item.type == QrType.sms ? parseSms(item.data.value) : null;
     final uri = item.type == QrType.url ? Uri.tryParse(item.data.value) : null;
 final actions = <Widget>[
       OutlinedButton.icon(
@@ -118,44 +121,97 @@ final actions = <Widget>[
             if (wifi != null) ...[
               _InfoCard(
                 icon: Icons.wifi_rounded,
-                title: 'Wi-Fi network',
+                title: 'Network name',
                 value: wifi.ssid,
+                onCopy: () => _copyValue(
+                  context,
+                  wifi.ssid,
+                  'Wi-Fi name',
+                ),
               ),
               const SizedBox(height: 12),
               _InfoCard(
                 icon: Icons.lock_outline,
                 title: 'Password',
                 value: wifi.password ?? 'Not required',
+                onCopy: wifi.password == null
+                    ? null
+                    : () => _copyValue(
+                          context,
+                          wifi.password!,
+                          'Wi-Fi password',
+                        ),
               ),
+              ] else if (email != null) ...[
+              _InfoCard(
+                icon: Icons.person_outline_rounded,
+                title: 'Recipient',
+                value: email.to,
+                onCopy: () =>
+                    _copyValue(context, email.to, 'Email recipient'),
+              ),
+              if (email.subject != null) ...[
+                const SizedBox(height: 12),
+                _InfoCard(
+                  icon: Icons.subject_rounded,
+                  title: 'Subject',
+                  value: email.subject!,
+                  onCopy: () => _copyValue(
+                    context,
+                    email.subject!,
+                    'Email subject',
+                  ),
+                ),
+              ],
+              if (email.body != null) ...[
+                const SizedBox(height: 12),
+                _InfoCard(
+                  icon: Icons.notes_rounded,
+                  title: 'Message',
+                  value: email.body!,
+                  onCopy: () => _copyValue(
+                    context,
+                    email.body!,
+                    'Email body',
+                  ),
+                ),
+              ],
+            ] else if (sms != null) ...[
+              _InfoCard(
+                icon: Icons.phone_rounded,
+                title: 'Send to',
+                value: sms.phoneNumber,
+                onCopy: () => _copyValue(
+                  context,
+                  sms.phoneNumber,
+                  'SMS recipient',
+                ),
+              ),
+              if (sms.message != null) ...[
+                const SizedBox(height: 12),
+                _InfoCard(
+                  icon: Icons.sms_rounded,
+                  title: 'Message',
+                  value: sms.message!,
+                  onCopy: () => _copyValue(
+                    context,
+                    sms.message!,
+                    'SMS body',
+                  ),
+                ),
+              ],
             ] else ...[
               _InfoCard(
                 icon: _iconForType(item.type),
                 title: _contentLabel(item.type),
                 value: item.data.value,
+                onCopy: () => _copyValue(
+                  context,
+                  item.data.value,
+                  _contentLabel(item.type),
+                ),
               ),
-              // if (item.type == QrType.url && uri != null) ...[
-              //   const SizedBox(height: 16),
-              //   FilledButton.icon(
-              //     onPressed: () async {
-              //       final launched = await tryLaunchUrl(uri);
-              //       if (!launched && context.mounted) {
-              //         ScaffoldMessenger.of(context).showSnackBar(
-              //           const SnackBar(content: Text('Could not open the link.')),
-              //         );
-              //       }
-              //     },
-              //     icon: const Icon(Icons.open_in_new_rounded),
-              //     label: const Text('Open in browser'),
-              //   ),
-              //    if (!autoSaved && onSave != null) ...[
-              // const SizedBox(height: 20),
-              // FilledButton.icon(
-              //   onPressed: onSave,
-              //   icon: const Icon(Icons.save_rounded),
-              //   label: const Text('Save to history'),
-              // ),
             ],
-              // ],
               if (actions.isNotEmpty) ...[
               const SizedBox(height: 16),
               Wrap(
@@ -177,6 +233,17 @@ final actions = <Widget>[
       ),
     );
   }
+  Future<void> _copyValue(
+    BuildContext context,
+    String value,
+    String label,
+  ) async {
+    await Clipboard.setData(ClipboardData(text: value));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$label copied to clipboard.')),
+    );
+  }
 }
 
 class _InfoCard extends StatelessWidget {
@@ -184,11 +251,13 @@ class _InfoCard extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.value,
+    this.onCopy,
   });
 
   final IconData icon;
   final String title;
   final String value;
+  final VoidCallback? onCopy;
 
   @override
   Widget build(BuildContext context) {
@@ -207,13 +276,23 @@ class _InfoCard extends StatelessWidget {
             children: [
               Icon(icon, color: theme.colorScheme.primary),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: theme.textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.onSurfaceVariant,
+              Expanded(
+                child: Text(
+                  title,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
+              if (onCopy != null)
+                IconButton(
+                  tooltip: 'Copy',
+                  icon: const Icon(Icons.copy_rounded),
+                  color: theme.colorScheme.primary,
+                  onPressed: onCopy,
+                  visualDensity: VisualDensity.compact,
+                ),
             ],
           ),
           const SizedBox(height: 14),
@@ -227,66 +306,6 @@ class _InfoCard extends StatelessWidget {
       ),
     );
   }
-}
-
-class _WifiCredentials {
-  const _WifiCredentials({
-    required this.ssid,
-    this.password,
-  });
-
-  final String ssid;
-  final String? password;
-}
-
-_WifiCredentials? _parseWifi(String raw) {
-  if (!raw.startsWith('WIFI:')) return null;
-  final content = raw.substring(5);
-  String? ssid;
-  String? password;
-
-  final parts = content.split(';');
-  for (final part in parts) {
-    if (part.isEmpty) continue;
-    final separatorIndex = part.indexOf(':');
-    if (separatorIndex == -1) continue;
-    final key = part.substring(0, separatorIndex);
-    final value = _unescape(part.substring(separatorIndex + 1));
-    switch (key) {
-      case 'S':
-        ssid = value;
-        break;
-      case 'P':
-        password = value.isEmpty ? null : value;
-        break;
-    }
-  }
-
-  if (ssid == null && password == null) {
-    return null;
-  }
-
-  return _WifiCredentials(
-    ssid: ssid == null || ssid.isEmpty ? 'Unknown network' : ssid,
-    password: password,
-  );
-}
-
-String _unescape(String input) {
-  final buffer = StringBuffer();
-  var isEscaping = false;
-  for (var i = 0; i < input.length; i++) {
-    final char = input[i];
-    if (isEscaping) {
-      buffer.write(char);
-      isEscaping = false;
-    } else if (char == '\\') {
-      isEscaping = true;
-    } else {
-      buffer.write(char);
-    }
-  }
-  return buffer.toString();
 }
 
 IconData _iconForType(QrType type) {

@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:qr_code/core/utils/qr_parsers.dart';
 import 'package:qr_code/domain/entities/qr_item.dart';
+import 'package:qr_code/domain/entities/qr_source.dart';
 import 'package:qr_code/features/scan/presentation/widgets/scan_result_sheet.dart';
 
 import '../../../app/di/providers.dart';
@@ -284,66 +286,150 @@ class _HistorySheet extends ConsumerWidget {
               ...items.map(
                 (item) => Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Icon(
-                          _iconForType(item.type),
-                          color: theme.colorScheme.primary,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.data.value,
-                              style: theme.textTheme.titleSmall,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _formatTimestamp(context, item.createdAt),
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Copy',
-                        icon: const Icon(Icons.copy_rounded),
-                        color: theme.colorScheme.primary,
-                        onPressed: () async {
-                          HapticFeedback.selectionClick();
-                          final messenger = ScaffoldMessenger.of(context);
-                          await Clipboard.setData(
-                            ClipboardData(text: item.data.value),
-                          );
-                          messenger.showSnackBar(
-                            const SnackBar(
-                              content: Text('Copied to clipboard.'),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+                  child: _HistorySheetItem(item: item),
                 ),
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _HistorySheetItem extends StatelessWidget {
+  const _HistorySheetItem({required this.item});
+
+  final QrItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final summary = _summaryForItem(item);
+    final iconColor = theme.colorScheme.primary;
+    final chips = <Widget>[
+      _HistorySheetChip(label: _formatTimestamp(context, item.createdAt)),
+      _HistorySheetChip(
+        label: _sourceLabel(item.source),
+        icon: _iconForSource(item.source),
+      ),
+      if (item.isFavorite)
+        const _HistorySheetChip(
+          label: 'Pinned',
+          icon: Icons.push_pin_rounded,
+        ),
+      _HistorySheetChip(
+        label: item.id.value.substring(0, 8),
+        icon: Icons.fingerprint_rounded,
+      ),
+    ];
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    color: iconColor.withOpacity(0.12),
+                  ),
+                  child: Icon(
+                    _iconForType(item.type),
+                    color: iconColor,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _labelForType(item.type),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        summary,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall,
+                      ),
+                    ],
+                  ),
+                ),
+              // ),
+              IconButton(
+                  tooltip: 'Copy',
+                  icon: const Icon(Icons.copy_rounded),
+                  color: iconColor,
+                  onPressed: () async {
+                    HapticFeedback.selectionClick();
+                    final messenger = ScaffoldMessenger.of(context);
+                    await Clipboard.setData(
+                      ClipboardData(text: item.data.value),
+                    );
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('Copied to clipboard.'),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: chips,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HistorySheetChip extends StatelessWidget {
+  const _HistorySheetChip({required this.label, this.icon});
+
+  final String label;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -367,6 +453,55 @@ IconData _iconForType(QrType type) {
       return Icons.account_box_rounded;
   }
 }
+
+String _labelForType(QrType type) {
+  switch (type) {
+    case QrType.text:
+      return 'Plain text';
+    case QrType.url:
+      return 'Website';
+    case QrType.wifi:
+      return 'Wi‑Fi network';
+    case QrType.email:
+      return 'Email address';
+    case QrType.phone:
+      return 'Phone number';
+    case QrType.sms:
+      return 'SMS shortcut';
+    case QrType.vcard:
+      return 'Contact card';
+  }
+}
+
+String _summaryForItem(QrItem item) {
+  final wifi = item.type == QrType.wifi ? parseWifi(item.data.value) : null;
+  final email = item.type == QrType.email ? parseEmail(item.data.value) : null;
+  final sms = item.type == QrType.sms ? parseSms(item.data.value) : null;
+  return wifi?.ssid ?? email?.to ?? sms?.phoneNumber ?? item.data.value;
+}
+
+String _sourceLabel(QrSource source) {
+  switch (source) {
+    case QrSource.generated:
+      return 'Generated';
+    case QrSource.scanned:
+      return 'Scanned';
+    case QrSource.unknown:
+      return 'Uncategorized';
+  }
+}
+
+IconData _iconForSource(QrSource source) {
+  switch (source) {
+    case QrSource.generated:
+      return Icons.qr_code_2_rounded;
+    case QrSource.scanned:
+      return Icons.document_scanner_rounded;
+    case QrSource.unknown:
+      return Icons.help_outline_rounded;
+  }
+}
+
 
 String _formatTimestamp(BuildContext context, DateTime date) {
   final now = DateTime.now();

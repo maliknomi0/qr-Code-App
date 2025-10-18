@@ -74,7 +74,8 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
             Text(
               'Align the code within the frame',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: overlaySubtleColor,
+                // Use a dark color in light theme for better readability.
+                color: isLight ? Colors.black87 : overlaySubtleColor,
                 fontWeight: FontWeight.w500,
               ),
             ),

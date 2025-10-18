@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/utils/uri_utils.dart';
 import '../../../../domain/entities/qr_item.dart';
@@ -20,7 +21,46 @@ class ScanResultSheet extends StatelessWidget {
     final theme = Theme.of(context);
     final wifi = item.type == QrType.wifi ? _parseWifi(item.data.value) : null;
     final uri = item.type == QrType.url ? Uri.tryParse(item.data.value) : null;
+final actions = <Widget>[
+      OutlinedButton.icon(
+        onPressed: () {
+          Clipboard.setData(ClipboardData(text: item.data.value));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Copied to clipboard.')),
+          );
+        },
+        icon: const Icon(Icons.copy_rounded),
+        label: const Text('Copy'),
+      ),
+    ];
 
+    if (item.type == QrType.url && uri != null) {
+      actions.insert(
+        0,
+        FilledButton.icon(
+          onPressed: () async {
+            final launched = await tryLaunchUrl(uri);
+            if (!launched && context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Could not open the link.')),
+              );
+            }
+          },
+          icon: const Icon(Icons.open_in_new_rounded),
+          label: const Text('Open in browser'),
+        ),
+      );
+    }
+
+    if (!autoSaved && onSave != null) {
+      actions.add(
+        FilledButton.icon(
+          onPressed: onSave,
+          icon: const Icon(Icons.save_rounded),
+          label: const Text('Save to history'),
+        ),
+      );
+    }
     return SafeArea(
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
@@ -93,29 +133,44 @@ class ScanResultSheet extends StatelessWidget {
                 title: _contentLabel(item.type),
                 value: item.data.value,
               ),
-              if (item.type == QrType.url && uri != null) ...[
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: () async {
-                    final launched = await tryLaunchUrl(uri);
-                    if (!launched && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Could not open the link.')),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.open_in_new_rounded),
-                  label: const Text('Open in browser'),
-                ),
-                 if (!autoSaved && onSave != null) ...[
-              const SizedBox(height: 20),
-              FilledButton.icon(
-                onPressed: onSave,
-                icon: const Icon(Icons.save_rounded),
-                label: const Text('Save to history'),
-              ),
+              // if (item.type == QrType.url && uri != null) ...[
+              //   const SizedBox(height: 16),
+              //   FilledButton.icon(
+              //     onPressed: () async {
+              //       final launched = await tryLaunchUrl(uri);
+              //       if (!launched && context.mounted) {
+              //         ScaffoldMessenger.of(context).showSnackBar(
+              //           const SnackBar(content: Text('Could not open the link.')),
+              //         );
+              //       }
+              //     },
+              //     icon: const Icon(Icons.open_in_new_rounded),
+              //     label: const Text('Open in browser'),
+              //   ),
+              //    if (!autoSaved && onSave != null) ...[
+              // const SizedBox(height: 20),
+              // FilledButton.icon(
+              //   onPressed: onSave,
+              //   icon: const Icon(Icons.save_rounded),
+              //   label: const Text('Save to history'),
+              // ),
             ],
-              ],
+              // ],
+              if (actions.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: actions
+                    .map(
+                      (action) => SizedBox(
+                        width:
+                            actions.length == 1 ? double.infinity : null,
+                        child: action,
+                      ),
+                    )
+                    .toList(),
+              ),
             ],
           ],
         ),

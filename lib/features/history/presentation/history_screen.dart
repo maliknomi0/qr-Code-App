@@ -45,6 +45,11 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       context: context,
       showDragHandle: true,
       useSafeArea: true,
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+      // up to ~90% of screen height so the buttons aren’t cut off
+      maxHeight: MediaQuery.of(context).size.height * 0.9,
+    ),
       builder: (context) => _TypeFilterSheet(initialSelection: _typeFilters),
     );
     if (!mounted) return;
